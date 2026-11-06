@@ -2,155 +2,402 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Plant Health Index Dashboard</title>
+    <title>Plant Health Index - Smart Plant IoT</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
+        :root {
+            --bg-start: #78350f;
+            --bg-end: #0f172a;
+            --card-bg: rgba(255, 255, 255, 0.08);
+            --border-color: rgba(255, 255, 255, 0.15);
+            --health-accent: #fbbf24;
+        }
+
         body {
-            font-family: Arial, sans-serif;
-            background: linear-gradient(135deg, #f39c12, #d35400);
-            color: white;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background: linear-gradient(135deg, var(--bg-start), var(--bg-end));
+            color: #f8fafc;
             text-align: center;
             margin: 0;
             padding: 0;
+            min-height: 100vh;
         }
+
         header {
-            padding: 20px;
+            padding: 24px 20px;
+            background: rgba(15, 23, 42, 0.6);
+            backdrop-filter: blur(12px);
+            border-bottom: 1px solid var(--border-color);
         }
+
+        h1 {
+            margin: 0 0 12px 0;
+            font-size: 1.8rem;
+            font-weight: 600;
+        }
+
         nav a {
-            color: white;
-            margin: 0 15px;
+            color: #94a3b8;
+            margin: 0 12px;
             text-decoration: none;
+            font-size: 0.95rem;
+            font-weight: 500;
+            transition: color 0.2s;
         }
+
+        nav a:hover, nav a.active {
+            color: #fbbf24;
+        }
+
+        .status-badge {
+            display: inline-block;
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            font-weight: 600;
+            letter-spacing: 0.05em;
+            padding: 3px 10px;
+            border-radius: 4px;
+            margin-top: 8px;
+            background: rgba(251, 191, 36, 0.15);
+            color: #fbbf24;
+            border: 1px solid rgba(251, 191, 36, 0.3);
+        }
+
+        .status-badge.simulated {
+            background: rgba(234, 179, 8, 0.15);
+            color: #facc15;
+            border-color: rgba(234, 179, 8, 0.3);
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 30px auto;
+            padding: 0 20px;
+        }
+
         .sensor-card {
-            background: rgba(255,255,255,0.2);
-            border-radius: 10px;
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 24px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+            backdrop-filter: blur(8px);
+        }
+
+        .metric-value {
+            font-size: 3.5rem;
+            font-weight: 800;
+            margin: 16px 0 6px 0;
+            font-variant-numeric: tabular-nums;
+            color: #4ade80;
+        }
+
+        .condition-indicator {
+            font-size: 1.2rem;
+            font-weight: 600;
+            margin-bottom: 20px;
+        }
+
+        .chart-container {
+            position: relative;
+            height: 280px;
+            width: 100%;
+            margin-top: 20px;
+        }
+
+        .diagnostic-card {
+            margin-top: 24px;
             padding: 20px;
-            margin: 20px auto;
-            max-width: 600px;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+            background: rgba(0, 0, 0, 0.35);
+            border-radius: 12px;
+            border: 1px solid var(--border-color);
+            text-align: left;
         }
-        canvas {
-            max-width: 100%;
-            height: 300px; /* Fixed height for better control */
+
+        .diag-title {
+            font-size: 1rem;
+            font-weight: 700;
+            color: #fbbf24;
+            margin-bottom: 8px;
         }
+
+        .diag-item {
+            margin: 6px 0;
+            font-size: 0.9rem;
+            color: #cbd5e1;
+            line-height: 1.4;
+        }
+
         footer {
-            padding: 20px;
-            color: rgba(255,255,255,0.7);
-        }
-        #healthAlert {
-            color: white;
-            font-weight: bold;
-            font-size: 1.2em;
-            padding: 10px;
-            border-radius: 5px;
-            margin-top: 10px;
+            padding: 30px 20px;
+            color: #64748b;
+            font-size: 0.85rem;
         }
     </style>
 </head>
 <body>
 
 <header>
-    <h1>Plant Health Index Monitoring</h1>
+    <h1>Plant Health Index & Diagnostics</h1>
     <nav>
-        <a href="index.html">Dashboard</a>
+        <a href="index.html">← Platform Command Center</a>
         <a href="moisture.html">Soil Moisture</a>
         <a href="temperature.html">Temperature</a>
         <a href="humidity.html">Humidity</a>
+        <a href="health.html" class="active">Plant Health</a>
     </nav>
+    <div id="sourceBadge" class="status-badge">Connecting to IoT Backend...</div>
 </header>
 
-<div class="sensor-card">
-    <canvas id="healthChart"></canvas>
-    <p id="healthStatus">Current Health Index Level</p>
-    <div id="healthAlert"></div>
+<div class="container">
+    <div class="sensor-card">
+        <div style="display: flex; justify-content: space-between; align-items: baseline;">
+            <span style="font-size: 0.9rem; color: #94a3b8;">Multi-Sensor Environmental Analysis (Moisture, Temp, Humidity, Light)</span>
+            <span id="lastUpdated" style="font-size: 0.8rem; color: #64748b;">Evaluating sensor stream...</span>
+        </div>
+
+        <div class="metric-value" id="healthScore">-- / 100</div>
+        <div class="condition-indicator" id="healthStatus">Overall Health: Calculating...</div>
+
+        <div class="chart-container">
+            <canvas id="healthChart"></canvas>
+        </div>
+
+        <div class="diagnostic-card">
+            <div class="diag-title">Botanical Stress Evaluation & Recommendations</div>
+            <div class="diag-item" id="diagSummary">Analyzing environmental telemetry...</div>
+            <div class="diag-item" id="diagAction" style="margin-top: 10px; color: #38bdf8;"><strong>Recommended Action:</strong> Checking optimal thresholds...</div>
+        </div>
+    </div>
 </div>
 
 <script>
-    class HealthMonitorSystem {
-        constructor() {
-            this.healthIndex = this.calculateHealthIndex();
-            this.historicalHealth = [];
-            this.updateHealthIndex();
-            setInterval(() => this.updateHealthIndex(), 10000); // Update every 10 seconds
-            this.createChart();
-        }
-
-        calculateHealthIndex() {
-            // Simulate health index based on random values for demonstration
-            return Math.floor(Math.random() * 100);
-        }
-
-        updateHealthIndex() {
-            this.healthIndex = this.calculateHealthIndex();
-            this.historicalHealth.push(this.healthIndex);
-            
-            if (this.historicalHealth.length > 30) {
-                this.historicalHealth.shift();
-            }
-
-            document.getElementById('healthStatus').textContent = `Current Health Index Level: ${this.healthIndex}`;
-            
-            // Display alerts based on health index
-            const alertDiv = document.getElementById('healthAlert');
-            if (this.healthIndex < 40) {
-                alertDiv.textContent = "Alert! Critical health status.";
-                alertDiv.style.backgroundColor = "rgba(255,0,0,0.6)";
-            } else if (this.healthIndex < 70) {
-                alertDiv.textContent = "Warning! Moderate health stress.";
-                alertDiv.style.backgroundColor = "rgba(255,165,0,0.6)";
-            } else {
-                alertDiv.textContent = "Healthy plant conditions.";
-                alertDiv.style.backgroundColor = "rgba(0,128,0,0.6)";
-            }
-
-            // Update the chart with new data
-            this.updateChart();
-        }
-
-        updateChart() {
-            // Update the chart with the latest historical health data
-            healthChart.data.datasets[0].data = this.historicalHealth;
-            healthChart.update();
-        }
-
-        createChart() {
-            const ctx = document.getElementById('healthChart').getContext('2d');
-            
-            window.healthChart = new Chart(ctx, {
-                type: 'line',
-                data: {
-                    labels: Array.from({length: 30}, (_, i) => `-${30 - i}m`),
-                    datasets: [{
-                        label: 'Health Index',
-                        data: this.historicalHealth,
-                        borderColor: 'purple',
-                        tension: 0.4,
-                        fill: true,
-                        backgroundColor: 'rgba(155,89,182,.3)'
-                    }]
+    const ctx = document.getElementById('healthChart').getContext('2d');
+    const healthChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: Array.from({ length: 30 }, (_, i) => `-${30 - i}m`),
+            datasets: [{
+                label: 'Plant Health Score (0-100)',
+                data: Array(30).fill(null),
+                borderColor: '#4ade80',
+                backgroundColor: 'rgba(74, 222, 128, 0.15)',
+                tension: 0.35,
+                fill: true,
+                borderWidth: 2,
+                pointRadius: 2,
+                pointHoverRadius: 5
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                y: {
+                    min: 0,
+                    max: 100,
+                    grid: { color: 'rgba(255, 255, 255, 0.08)' },
+                    ticks: { color: '#94a3b8' }
                 },
-                options:{
-                    responsive: true,
-                    scales: {
-                        y: {
-                            beginAtZero: true,
-                            max: 100 // Set maximum value for health index
-                        }
-                    },
-                    plugins: {
-                        legend: { display: false }
-                    }
+                x: {
+                    grid: { color: 'rgba(255, 255, 255, 0.05)' },
+                    ticks: { color: '#64748b', maxTicksLimit: 10 }
                 }
-            });
+            },
+            plugins: { legend: { display: false } }
+        }
+    });
+
+    function calculateClientHealth(t) {
+        if (!t) return { score: 75, status: 'Good', summary: 'Nominal baseline', rec: 'Maintain conditions' };
+        let score = 100;
+        let issues = [];
+        let recs = [];
+
+        // Moisture (target: 40 - 75%)
+        if (typeof t.moisture === 'number') {
+            if (t.moisture < 40) {
+                score -= (40 - t.moisture) * 1.2;
+                issues.push(`Soil moisture deficit (${t.moisture}%)`);
+                recs.push('Trigger irrigation cycle');
+            } else if (t.moisture > 75) {
+                score -= (t.moisture - 75) * 1.0;
+                issues.push(`Substrate waterlogging (${t.moisture}%)`);
+                recs.push('Ensure pot drainage and pause watering');
+            }
+        }
+
+        // Temp (target: 19 - 28°C)
+        if (typeof t.temperature === 'number') {
+            if (t.temperature < 19) {
+                score -= (19 - t.temperature) * 3;
+                issues.push(`Cold stress (${t.temperature}°C)`);
+                recs.push('Relocate from cold drafts');
+            } else if (t.temperature > 28) {
+                score -= (t.temperature - 28) * 3;
+                issues.push(`Heat stress (${t.temperature}°C)`);
+                recs.push('Enable cooling fan');
+            }
+        }
+
+        // Humidity (target: 50 - 80%)
+        if (typeof t.humidity === 'number') {
+            if (t.humidity < 45) {
+                score -= 15;
+                issues.push(`Dry ambient air (${t.humidity}%)`);
+                recs.push('Run ultrasonic humidifier');
+            }
+        }
+
+        score = Math.max(10, Math.min(100, Math.round(score)));
+        let status = 'Excellent';
+        if (score < 45) status = 'Critical';
+        else if (score < 70) status = 'Fair';
+        else if (score < 85) status = 'Good';
+
+        return {
+            score,
+            status,
+            summary: issues.length ? issues.join(' · ') : 'All parameters within optimal range',
+            rec: recs.length ? recs.join('; ') : 'Maintain current environment'
+        };
+    }
+
+    function updateDisplay(health, isSimulated, timestamp) {
+        const scoreElem = document.getElementById('healthScore');
+        const statusElem = document.getElementById('healthStatus');
+        const badgeElem = document.getElementById('sourceBadge');
+        const updatedElem = document.getElementById('lastUpdated');
+        const summaryElem = document.getElementById('diagSummary');
+        const actionElem = document.getElementById('diagAction');
+
+        scoreElem.textContent = `${health.score} / 100`;
+        statusElem.textContent = `Overall Botanical Health: ${health.status}`;
+        summaryElem.textContent = health.summary;
+        actionElem.innerHTML = `<strong>Recommended Action:</strong> ${health.rec}`;
+        updatedElem.textContent = `Last evaluated: ${new Date(timestamp || Date.now()).toLocaleTimeString()}`;
+
+        if (health.score >= 80) {
+            scoreElem.style.color = '#4ade80';
+            statusElem.style.color = '#4ade80';
+        } else if (health.score >= 60) {
+            scoreElem.style.color = '#fbbf24';
+            statusElem.style.color = '#fbbf24';
+        } else {
+            scoreElem.style.color = '#f87171';
+            statusElem.style.color = '#f87171';
+        }
+
+        if (isSimulated) {
+            badgeElem.className = 'status-badge simulated';
+            badgeElem.textContent = 'Hardware Simulation Mode (ESP32-DEMO)';
+        } else {
+            badgeElem.className = 'status-badge';
+            badgeElem.textContent = 'Live Physical ESP32 Hardware Stream';
         }
     }
 
-    const healthSystem = new HealthMonitorSystem();
+    async function loadInitialData() {
+        try {
+            const tsRes = await fetch('/api/v1/thingspeak/data');
+            const tsData = await tsRes.json();
+            if (tsData && tsData.success && tsData.feeds && tsData.feeds.length > 0) {
+                const feeds = tsData.feeds;
+                const points = feeds.map(f => calculateClientHealth(f).score);
+                const labels = feeds.map(f => new Date(f.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+
+                healthChart.data.labels = labels;
+                healthChart.data.datasets[0].data = points;
+                healthChart.update();
+
+                const latest = tsData.latest;
+                if (latest) {
+                    const h = calculateClientHealth(latest);
+                    updateDisplay(h, false, latest.createdAt);
+                    const badgeElem = document.getElementById('sourceBadge');
+                    if (badgeElem) {
+                        badgeElem.className = 'status-badge';
+                        badgeElem.style.borderColor = '#10b981';
+                        badgeElem.style.color = '#34d399';
+                        badgeElem.textContent = 'ThingSpeak Cloud IoT Telemetry Evaluation';
+                    }
+                    return;
+                }
+            }
+
+            const res = await fetch('/api/v1/telemetry/history?range=24h&limit=30');
+            const data = await res.json();
+            if (data && data.length > 0) {
+                const points = data.map(d => calculateClientHealth(d).score);
+                const labels = data.map(d => new Date(d.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+
+                healthChart.data.labels = labels;
+                healthChart.data.datasets[0].data = points;
+                healthChart.update();
+
+                const latest = data[data.length - 1];
+                const h = calculateClientHealth(latest);
+                updateDisplay(h, latest.isSimulated, latest.timestamp);
+            }
+        } catch (err) {
+            console.error('Failed to load initial health data:', err);
+        }
+    }
+
+    function connectWebSocket() {
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const socket = new WebSocket(`${protocol}//${window.location.host}/ws`);
+
+        socket.onmessage = (event) => {
+            try {
+                const msg = JSON.parse(event.data);
+                if (msg.event === 'thingspeak:update') {
+                    const latest = msg.data.latest;
+                    const feeds = msg.data.feeds;
+                    if (feeds && feeds.length > 0) {
+                        healthChart.data.labels = feeds.map(f => new Date(f.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+                        healthChart.data.datasets[0].data = feeds.map(f => calculateClientHealth(f).score);
+                        healthChart.update();
+                    }
+                    if (latest) {
+                        const h = calculateClientHealth(latest);
+                        updateDisplay(h, false, latest.createdAt);
+                        const badgeElem = document.getElementById('sourceBadge');
+                        if (badgeElem) {
+                            badgeElem.textContent = 'ThingSpeak Cloud IoT Telemetry Evaluation';
+                        }
+                    }
+                } else if (msg.event === 'telemetry:update') {
+                    const record = msg.data.record;
+                    const h = calculateClientHealth(record);
+                    updateDisplay(h, record.isSimulated, record.timestamp);
+
+                    const chartData = healthChart.data.datasets[0].data;
+                    const chartLabels = healthChart.data.labels;
+                    chartData.push(h.score);
+                    chartLabels.push(new Date(record.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+
+                    if (chartData.length > 30) {
+                        chartData.shift();
+                        chartLabels.shift();
+                    }
+                    healthChart.update();
+                }
+            } catch (e) {
+                console.warn(e);
+            }
+        };
+
+        socket.onclose = () => setTimeout(connectWebSocket, 3000);
+    }
+
+    loadInitialData();
+    connectWebSocket();
 </script>
 
 <footer>
-    © 2024 Smart Plant Monitoring | Developed by Anmol
+    Smart Plant Monitoring Platform | Real IoT Hardware & ESP32 Integration
 </footer>
 
 </body>

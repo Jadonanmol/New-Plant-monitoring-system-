@@ -2,41 +2,153 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Soil Moisture Dashboard</title>
+    <title>Soil Moisture Dashboard - Smart Plant IoT</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
+        :root {
+            --bg-start: #1a365d;
+            --bg-end: #0f172a;
+            --card-bg: rgba(255, 255, 255, 0.08);
+            --border-color: rgba(255, 255, 255, 0.15);
+            --primary-accent: #38bdf8;
+            --success-color: #22c55e;
+            --warning-color: #eab308;
+            --danger-color: #ef4444;
+        }
+
         body {
-            font-family: Arial, sans-serif;
-            background: linear-gradient(135deg, #3498db, #2980b9);
-            color: white;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background: linear-gradient(135deg, var(--bg-start), var(--bg-end));
+            color: #f8fafc;
             text-align: center;
             margin: 0;
             padding: 0;
+            min-height: 100vh;
         }
+
         header {
-            padding: 20px;
+            padding: 24px 20px;
+            background: rgba(15, 23, 42, 0.6);
+            backdrop-filter: blur(12px);
+            border-bottom: 1px solid var(--border-color);
         }
+
+        h1 {
+            margin: 0 0 12px 0;
+            font-size: 1.8rem;
+            font-weight: 600;
+            letter-spacing: -0.02em;
+        }
+
         nav a {
-            color: white;
-            margin: 0 15px;
+            color: #94a3b8;
+            margin: 0 12px;
             text-decoration: none;
+            font-size: 0.95rem;
+            font-weight: 500;
+            transition: color 0.2s;
         }
+
+        nav a:hover, nav a.active {
+            color: #38bdf8;
+        }
+
+        .status-badge {
+            display: inline-block;
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            font-weight: 600;
+            letter-spacing: 0.05em;
+            padding: 3px 10px;
+            border-radius: 4px;
+            margin-top: 8px;
+            background: rgba(56, 189, 248, 0.15);
+            color: #38bdf8;
+            border: 1px solid rgba(56, 189, 248, 0.3);
+        }
+
+        .status-badge.simulated {
+            background: rgba(234, 179, 8, 0.15);
+            color: #facc15;
+            border-color: rgba(234, 179, 8, 0.3);
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 30px auto;
+            padding: 0 20px;
+        }
+
         .sensor-card {
-            background: rgba(255,255,255,0.2);
-            border-radius: 10px;
-            padding: 20px;
-            margin: 20px auto;
-            max-width: 600px;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 24px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+            backdrop-filter: blur(8px);
         }
-        canvas {
-            max-width: 100%;
-            height: 300px; /* Specify a height for better control */
+
+        .metric-value {
+            font-size: 3rem;
+            font-weight: 700;
+            margin: 16px 0 6px 0;
+            font-variant-numeric: tabular-nums;
+            color: #38bdf8;
         }
+
+        .condition-indicator {
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin-bottom: 20px;
+        }
+
+        .chart-container {
+            position: relative;
+            height: 320px;
+            width: 100%;
+            margin-top: 20px;
+        }
+
+        .calibration-panel {
+            margin-top: 24px;
+            padding: 16px;
+            background: rgba(0, 0, 0, 0.25);
+            border-radius: 12px;
+            border: 1px solid var(--border-color);
+            text-align: left;
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .cal-info {
+            font-size: 0.85rem;
+            color: #cbd5e1;
+        }
+
+        .cal-btn {
+            background: #0284c7;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            font-weight: 600;
+            font-size: 0.85rem;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .cal-btn:hover {
+            background: #0369a1;
+        }
+
         footer {
-            padding: 20px;
-            color: rgba(255,255,255,0.7);
+            padding: 30px 20px;
+            color: #64748b;
+            font-size: 0.85rem;
         }
     </style>
 </head>
@@ -45,86 +157,257 @@
 <header>
     <h1>Soil Moisture Monitoring</h1>
     <nav>
-        <a href="index.html">Dashboard</a>
+        <a href="index.html">← Platform Command Center</a>
+        <a href="moisture.html" class="active">Soil Moisture</a>
         <a href="temperature.html">Temperature</a>
         <a href="humidity.html">Humidity</a>
-        <a href="health.html">Plant Health Index</a>
+        <a href="health.html">Plant Health</a>
     </nav>
+    <div id="sourceBadge" class="status-badge">Connecting to IoT Backend...</div>
 </header>
 
-<div class="sensor-card">
-    <canvas id="moistureChart"></canvas>
-    <p id="moistureStatus">Current Moisture Level</p>
+<div class="container">
+    <div class="sensor-card">
+        <div style="display: flex; justify-content: space-between; align-items: baseline;">
+            <span style="font-size: 0.9rem; color: #94a3b8;">Capacitive Sensor (GPIO 34)</span>
+            <span id="lastUpdated" style="font-size: 0.8rem; color: #64748b;">Waiting for data...</span>
+        </div>
+
+        <div class="metric-value" id="moistureValue">--%</div>
+        <div class="condition-indicator" id="moistureStatus">Substrate Condition: Reading...</div>
+
+        <div class="chart-container">
+            <canvas id="moistureChart"></canvas>
+        </div>
+
+        <div class="calibration-panel">
+            <div class="cal-info">
+                <div><strong>Hardware Calibration:</strong> ESP32 12-bit ADC</div>
+                <div>Dry Air: <span id="dryAdcVal">3200</span> | Saturated Water: <span id="wetAdcVal">1400</span> | Current Raw ADC: <span id="rawAdcVal">--</span></div>
+            </div>
+            <div>
+                <button class="cal-btn" onclick="calibrateCurrentAdc('dry')">Set Dry Air</button>
+                <button class="cal-btn" onclick="calibrateCurrentAdc('wet')">Set Wet Soil</button>
+            </div>
+        </div>
+    </div>
 </div>
 
 <script>
-    class MoistureMonitorSystem {
-        constructor() {
-            this.moistureData = this.generateRealisticValue(30, 80);
-            this.historicalData = [];
-            this.updateHistoricalData();
-            setInterval(() => this.updateHistoricalData(), 1000); // Update every second
-            this.createChart();
-        }
+    let currentRawAdc = 2156;
+    let dryAdc = 3200;
+    let wetAdc = 1400;
+    let activeDeviceId = 'esp32_greenhouse_01';
 
-        generateRealisticValue(min, max) {
-            return Math.floor(Math.random() * (max - min + 1)) + min;
-        }
-
-        updateHistoricalData() {
-            this.moistureData = this.generateRealisticValue(30, 80);
-            this.historicalData.push(this.moistureData);
-
-            if (this.historicalData.length > 30) {
-                this.historicalData.shift(); // Keep only the last 30 values
-            }
-
-            document.getElementById('moistureStatus').textContent = `Current Moisture Level: ${this.moistureData}%`;
-
-            this.updateChart();
-        }
-
-        updateChart() {
-            // Update the chart with the latest historical data
-            moistureChart.data.datasets[0].data = this.historicalData;
-            moistureChart.update();
-        }
-
-        createChart() {
-            const ctx = document.getElementById('moistureChart').getContext('2d');
-            window.moistureChart = new Chart(ctx, {
-                type: 'line',
-                data: {
-                    labels: Array.from({length: 30}, (_, i) => `-${30 - i}m`),
-                    datasets: [{
-                        label: 'Soil Moisture',
-                        data: this.historicalData,
-                        borderColor: 'blue',
-                        tension: 0.4,
-                        fill: true,
-                        backgroundColor: 'rgba(52,152,219,.3)'
-                    }]
+    // Chart initialization
+    const ctx = document.getElementById('moistureChart').getContext('2d');
+    const moistureChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: Array.from({ length: 30 }, (_, i) => `-${30 - i}m`),
+            datasets: [{
+                label: 'Soil Moisture (%)',
+                data: Array(30).fill(null),
+                borderColor: '#38bdf8',
+                backgroundColor: 'rgba(56, 189, 248, 0.15)',
+                tension: 0.35,
+                fill: true,
+                borderWidth: 2,
+                pointRadius: 2,
+                pointHoverRadius: 5
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                y: {
+                    min: 0,
+                    max: 100,
+                    grid: { color: 'rgba(255, 255, 255, 0.08)' },
+                    ticks: { color: '#94a3b8', callback: v => `${v}%` }
                 },
-                options: {
-                    responsive: true,
-                    scales: {
-                        y: {
-                            beginAtZero: true
-                        }
-                    },
-                    plugins: {
-                        legend: { display: false }
+                x: {
+                    grid: { color: 'rgba(255, 255, 255, 0.05)' },
+                    ticks: { color: '#64748b', maxTicksLimit: 10 }
+                }
+            },
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    callbacks: {
+                        label: ctx => `Moisture: ${ctx.parsed.y}%`
                     }
                 }
-            });
+            }
+        }
+    });
+
+    function updateDisplay(moisture, isSimulated, rawAdc, timestamp, isThingSpeak = false) {
+        const valElem = document.getElementById('moistureValue');
+        const statusElem = document.getElementById('moistureStatus');
+        const badgeElem = document.getElementById('sourceBadge');
+        const updatedElem = document.getElementById('lastUpdated');
+        const rawElem = document.getElementById('rawAdcVal');
+
+        if (moisture === null || moisture === undefined || isNaN(moisture)) {
+            valElem.textContent = 'No data available';
+            valElem.style.fontSize = '1.8rem';
+            statusElem.textContent = 'Substrate Condition: SENSOR OFFLINE';
+            statusElem.style.color = '#94a3b8';
+            valElem.style.color = '#94a3b8';
+            return;
+        }
+
+        valElem.style.fontSize = '3rem';
+        valElem.textContent = `${moisture.toFixed(1)}%`;
+        if (rawAdc) {
+            currentRawAdc = rawAdc;
+            rawElem.textContent = rawAdc;
+        }
+
+        updatedElem.textContent = `Last reading: ${new Date(timestamp || Date.now()).toLocaleTimeString()} (${new Date(timestamp || Date.now()).toUTCString()})`;
+
+        if (isThingSpeak) {
+            badgeElem.className = 'status-badge';
+            badgeElem.style.borderColor = '#0284c7';
+            badgeElem.style.color = '#38bdf8';
+            badgeElem.textContent = 'ThingSpeak Cloud IoT (field4: Soil Moisture)';
+        } else if (isSimulated) {
+            badgeElem.className = 'status-badge simulated';
+            badgeElem.textContent = 'Hardware Simulation Mode (ESP32-DEMO)';
+        } else {
+            badgeElem.className = 'status-badge';
+            badgeElem.textContent = 'Live Physical ESP32 Hardware Stream';
+        }
+
+        if (moisture < 35) {
+            statusElem.textContent = 'Substrate Condition: DRY (Low Moisture Warning)';
+            statusElem.style.color = '#ef4444';
+            valElem.style.color = '#ef4444';
+        } else if (moisture > 75) {
+            statusElem.textContent = 'Substrate Condition: SATURATED / WET';
+            statusElem.style.color = '#38bdf8';
+            valElem.style.color = '#38bdf8';
+        } else {
+            statusElem.textContent = 'Substrate Condition: OPTIMAL HYDRATION';
+            statusElem.style.color = '#22c55e';
+            valElem.style.color = '#22c55e';
         }
     }
 
-    const moistureSystem = new MoistureMonitorSystem();
+    // Load initial historical telemetry from backend
+    async function loadInitialData() {
+        try {
+            // First attempt to load real ThingSpeak channel feeds
+            const tsRes = await fetch('/api/v1/thingspeak/data');
+            const tsData = await tsRes.json();
+            if (tsData && tsData.success && tsData.feeds && tsData.feeds.length > 0) {
+                const feeds = tsData.feeds;
+                const points = feeds.map(f => f.moisture);
+                const labels = feeds.map(f => new Date(f.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+
+                moistureChart.data.labels = labels;
+                moistureChart.data.datasets[0].data = points;
+                moistureChart.update();
+
+                const latest = tsData.latest;
+                if (latest) {
+                    updateDisplay(latest.moisture, false, 0, latest.createdAt, true);
+                    return;
+                }
+            }
+
+            const res = await fetch('/api/v1/telemetry/history?range=24h&limit=30');
+            const data = await res.json();
+            if (data && data.length > 0) {
+                const points = data.map(d => d.moisture).filter(m => typeof m === 'number');
+                const labels = data.map(d => new Date(d.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+
+                moistureChart.data.labels = labels;
+                moistureChart.data.datasets[0].data = points;
+                moistureChart.update();
+
+                const latest = data[data.length - 1];
+                updateDisplay(latest.moisture, latest.isSimulated, latest.rawMoistureAdc, latest.timestamp, false);
+            }
+        } catch (err) {
+            console.error('Failed to load initial moisture history:', err);
+        }
+    }
+
+    // Connect to real-time WebSocket
+    function connectWebSocket() {
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const socket = new WebSocket(`${protocol}//${window.location.host}/ws`);
+
+        socket.onopen = () => {
+            console.log('[WebSocket] Connected to IoT server');
+        };
+
+        socket.onmessage = (event) => {
+            try {
+                const msg = JSON.parse(event.data);
+                if (msg.event === 'thingspeak:update') {
+                    const latest = msg.data.latest;
+                    const feeds = msg.data.feeds;
+                    if (feeds && feeds.length > 0) {
+                        moistureChart.data.labels = feeds.map(f => new Date(f.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+                        moistureChart.data.datasets[0].data = feeds.map(f => f.moisture);
+                        moistureChart.update();
+                    }
+                    if (latest) {
+                        updateDisplay(latest.moisture, false, 0, latest.createdAt, true);
+                    }
+                } else if (msg.event === 'telemetry:update') {
+                    const record = msg.data.record;
+                    if (typeof record.moisture === 'number') {
+                        updateDisplay(record.moisture, record.isSimulated, record.rawMoistureAdc, record.timestamp, false);
+
+                        // Push point to chart
+                        const chartData = moistureChart.data.datasets[0].data;
+                        const chartLabels = moistureChart.data.labels;
+                        chartData.push(record.moisture);
+                        chartLabels.push(new Date(record.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+
+                        if (chartData.length > 30) {
+                            chartData.shift();
+                            chartLabels.shift();
+                        }
+                        moistureChart.update();
+                    }
+                }
+            } catch (e) {
+                console.warn(e);
+            }
+        };
+
+        socket.onclose = () => {
+            setTimeout(connectWebSocket, 3000);
+        };
+    }
+
+    async function calibrateCurrentAdc(type) {
+        if (type === 'dry') dryAdc = currentRawAdc;
+        if (type === 'wet') wetAdc = currentRawAdc;
+
+        document.getElementById('dryAdcVal').textContent = dryAdc;
+        document.getElementById('wetAdcVal').textContent = wetAdc;
+
+        await fetch(`/api/v1/devices/${activeDeviceId}/calibration`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ dryAdc, wetAdc })
+        });
+        alert(`Saved ${type.toUpperCase()} calibration ADC: ${currentRawAdc}`);
+    }
+
+    loadInitialData();
+    connectWebSocket();
 </script>
 
 <footer>
-    © 2024 Smart Plant Monitoring | Developed by Anmol
+    Smart Plant Monitoring Platform | Real IoT Hardware & ESP32 Integration
 </footer>
 
 </body>

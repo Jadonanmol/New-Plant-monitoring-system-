@@ -1,0 +1,8 @@
+{
+  "name": "Plant Monitoring Dashboard",
+  "description": "Interactive web-based plant monitoring system with real-time sensor dashboards for moisture, temperature, humidity, and plant health.",
+  "permissions": [],
+  "capabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

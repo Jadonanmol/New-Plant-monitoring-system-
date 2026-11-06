@@ -1,195 +1,1292 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="dark">
 <head>
     <meta charset="UTF-8">
-    <title>Advanced Plant Monitoring Dashboard</title>
+    <title>Smart Plant Monitoring & IoT Control Platform</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Production IoT plant monitoring and automatic irrigation control system supporting physical ESP32 hardware, capacitive soil moisture, DHT22, BH1750, and ultrasonic sensors.">
+    <meta property="og:title" content="Smart Plant Monitoring & IoT Control Platform">
+    <meta property="og:description" content="Production IoT plant monitoring and automatic irrigation control system supporting physical ESP32 hardware.">
+
+    <!-- Fonts & Chart.js -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <!-- Tailwind CSS (Class-based dark mode) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['"Plus Jakarta Sans"', 'system-ui', 'sans-serif'],
+                        mono: ['"JetBrains Mono"', 'monospace']
+                    },
+                    colors: {
+                        brand: {
+                            50: '#ecfdf5',
+                            100: '#d1fae5',
+                            500: '#10b981',
+                            600: '#059669',
+                            700: '#047857',
+                            900: '#064e3b'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
     <style>
-        :root {
-            --primary-color: #2ecc71;
-            --secondary-color: #27ae60;
-            --alert-color: #e74c3c;
-        }
-
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        body {
-            font-family: 'Arial', sans-serif;
-            background: linear-gradient(-45deg, #3498db, #2ecc71, #9b59b6, #e74c3c);
-            background-size: 400% 400%;
-            animation: gradientBG 15s ease infinite;
-            color: white;
-            overflow-x: hidden;
-        }
-
-        @keyframes gradientBG {
-            0% { background-position: 0% 50%; }
-            50% { background-position: 100% 50%; }
-            100% { background-position: 0% 50%; }
-        }
-
-        .dashboard {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-            gap: 20px;
-            padding: 20px;
-        }
-
-        .sensor-card {
-            background: rgba(255,255,255,0.2);
-            backdrop-filter: blur(10px);
-            border-radius: 15px;
-            padding: 20px;
-            text-align: center;
-            transition: all 0.3s ease;
-            box-shadow: 0 10px 20px rgba(0,0,0,0.1);
-        }
-
-        .sensor-card:hover {
-            transform: scale(1.05);
-            box-shadow: 0 15px 30px rgba(0,0,0,0.2);
-        }
-
-        canvas {
-            max-width: 100%;
-            height: auto !important;
-        }
+        .tabular-nums { font-variant-numeric: tabular-nums; }
+        /* Custom scrollbar */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: rgba(0,0,0,0.1); }
+        ::-webkit-scrollbar-thumb { background: rgba(148, 163, 184, 0.3); border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: rgba(148, 163, 184, 0.5); }
     </style>
 </head>
-<body>
-    <h1 style="text-align: center; padding: 20px; text-shadow: 2px 2px 4px rgba(0,0,0,0.5);">
-        🌱 Intelligent Plant Monitoring System
-    </h1>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col font-sans transition-colors duration-200">
 
-    <div class="dashboard">
-        <div class="sensor-card" onclick="window.location.href='moisture.html'">
-            <h2>Soil Moisture</h2>
-            <canvas id="moistureChart"></canvas>
-            <p id="moistureStatus">Current: 0%</p>
+    <!-- TOP BAR NAVIGATION -->
+    <header class="sticky top-0 z-40 bg-slate-900/90 dark:bg-slate-900/90 backdrop-blur-md border-b border-slate-800 px-4 lg:px-8 py-3 flex items-center justify-between gap-4">
+        <!-- Zone 1: Wordmark & Core Status -->
+        <div class="flex items-center gap-3 shrink-0">
+            <a href="#" onclick="switchTab('overview')" class="flex items-center gap-2 group">
+                <div class="w-8 h-8 rounded-lg bg-emerald-600/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400 group-hover:scale-105 transition-transform">
+                    🌱
+                </div>
+                <div>
+                    <div class="font-bold text-base tracking-tight text-white flex items-center gap-2">
+                        SmartPlant <span class="text-xs font-mono font-normal text-emerald-400 uppercase tracking-widest border border-emerald-500/30 px-1.5 py-0.5 rounded">IoT OS</span>
+                    </div>
+                </div>
+            </a>
+            
+            <div id="thingSpeakStatusBadge" onclick="openConnectDeviceModal()" class="cursor-pointer inline-flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-mono border transition hover:opacity-90 bg-amber-500/10 text-amber-400 border-amber-500/30" title="Click to view or configure ThingSpeak IoT Channel">
+                <span id="tsStatusDot" class="w-2 h-2 rounded-full bg-amber-400"></span>
+                <span id="tsStatusText">ThingSpeak #1729295: Stale</span>
+            </div>
         </div>
 
-        <div class="sensor-card" onclick="window.location.href='temperature.html'">
-            <h2>Temperature</h2>
-            <canvas id="temperatureChart"></canvas>
-            <p id="temperatureStatus">Current: 0°C</p>
-        </div>
+        <!-- Zone 2: Navigation Links -->
+        <nav class="hidden xl:flex items-center gap-1 text-sm font-medium text-slate-400 overflow-x-auto py-1">
+            <button onclick="switchTab('overview')" data-nav="overview" class="nav-tab px-3 py-1.5 rounded-md hover:text-white transition-colors text-white bg-slate-800">Overview</button>
+            <button onclick="switchTab('plants')" data-nav="plants" class="nav-tab px-3 py-1.5 rounded-md hover:text-white transition-colors">My Plants</button>
+            <button onclick="switchTab('monitoring')" data-nav="monitoring" class="nav-tab px-3 py-1.5 rounded-md hover:text-white transition-colors">Live Monitoring</button>
+            <button onclick="switchTab('devices')" data-nav="devices" class="nav-tab px-3 py-1.5 rounded-md hover:text-white transition-colors">Devices</button>
+            <button onclick="switchTab('automation')" data-nav="automation" class="nav-tab px-3 py-1.5 rounded-md hover:text-white transition-colors">Automation</button>
+            <button onclick="switchTab('analytics')" data-nav="analytics" class="nav-tab px-3 py-1.5 rounded-md hover:text-white transition-colors">Analytics</button>
+            <button onclick="switchTab('alerts')" data-nav="alerts" class="nav-tab px-3 py-1.5 rounded-md hover:text-white transition-colors relative">
+                Alerts
+                <span id="navAlertBadge" class="hidden ml-1 px-1.5 py-0.2 rounded-full text-[10px] bg-rose-500 text-white font-mono">0</span>
+            </button>
+            <button onclick="switchTab('hardware')" data-nav="hardware" class="nav-tab px-3 py-1.5 rounded-md hover:text-white transition-colors">Hardware Setup</button>
+            <button onclick="switchTab('settings')" data-nav="settings" class="nav-tab px-3 py-1.5 rounded-md hover:text-white transition-colors">Settings</button>
+        </nav>
 
-        <div class="sensor-card" onclick="window.location.href='humidity.html'">
-            <h2>Humidity</h2>
-            <canvas id="humidityChart"></canvas>
-            <p id="humidityStatus">Current: 0%</p>
-        </div>
+        <!-- Zone 3: Quick Controls (Emergency Stop, Theme, Mobile Menu) -->
+        <div class="flex items-center gap-2.5 shrink-0">
+            <!-- Connect Device Action -->
+            <button onclick="openConnectDeviceModal()" class="px-3 py-1.5 text-xs font-semibold text-white bg-sky-600 hover:bg-sky-500 active:scale-95 transition rounded-md border border-sky-500/50 shadow-sm flex items-center gap-1.5" title="Connect ThingSpeak IoT Device">
+                <span>📡</span>
+                <span class="hidden sm:inline">Connect Device</span>
+            </button>
 
-        <div class="sensor-card" onclick="window.location.href='health.html'">
-            <h2>Plant Health Index</h2>
-            <canvas id="healthChart"></canvas>
-            <p id="healthStatus">Overall Health: Excellent</p>
+            <!-- ThingSpeak Status Badge in Header -->
+            <div id="thingSpeakStatusBadge" class="hidden md:flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-mono border bg-amber-500/10 border-amber-500/30 text-amber-300" title="ThingSpeak Channel Status">
+                <span id="tsBadgeDot" class="w-2 h-2 rounded-full bg-amber-400"></span>
+                <span id="tsBadgeText">TS #1729295: Checking...</span>
+            </div>
+
+            <!-- WebSocket status -->
+            <div id="wsIndicator" class="flex items-center gap-1.5 text-xs text-slate-400 font-mono" title="WebSocket Live Stream">
+                <span id="wsDot" class="w-2 h-2 rounded-full bg-emerald-400"></span>
+                <span id="wsText" class="hidden md:inline">Live Stream</span>
+            </div>
+
+            <!-- Emergency Pump Kill Switch -->
+            <button onclick="triggerEmergencyStop()" class="px-3 py-1.5 text-xs font-semibold uppercase tracking-wider text-white bg-rose-600 hover:bg-rose-500 active:scale-95 transition rounded-md border border-rose-500/50 shadow-sm flex items-center gap-1.5" title="Emergency shutoff for all pumps and relays">
+                <span>🛑</span>
+                <span class="hidden sm:inline">Emergency Stop</span>
+            </button>
+
+            <!-- Theme Toggle -->
+            <button onclick="toggleTheme()" class="p-2 text-slate-400 hover:text-white rounded-md border border-slate-800 hover:border-slate-700 bg-slate-900 transition" aria-label="Toggle Theme">
+                <span id="themeIcon">☀️</span>
+            </button>
+
+            <!-- Mobile Navigation Menu Toggle -->
+            <button onclick="toggleMobileNav()" class="xl:hidden p-2 text-slate-400 hover:text-white rounded-md border border-slate-800 bg-slate-900 transition" aria-label="Open Navigation Menu">
+                ☰
+            </button>
+        </div>
+    </header>
+
+    <!-- MOBILE DROPDOWN NAV -->
+    <div id="mobileNavMenu" class="hidden xl:hidden bg-slate-900 border-b border-slate-800 px-4 py-3 flex flex-wrap gap-2 text-sm z-30">
+        <button onclick="switchTab('overview')" class="px-3 py-1.5 rounded bg-slate-800 text-white">Overview</button>
+        <button onclick="switchTab('plants')" class="px-3 py-1.5 rounded text-slate-400 hover:text-white">My Plants</button>
+        <button onclick="switchTab('monitoring')" class="px-3 py-1.5 rounded text-slate-400 hover:text-white">Live Monitoring</button>
+        <button onclick="switchTab('devices')" class="px-3 py-1.5 rounded text-slate-400 hover:text-white">Devices</button>
+        <button onclick="switchTab('automation')" class="px-3 py-1.5 rounded text-slate-400 hover:text-white">Automation</button>
+        <button onclick="switchTab('analytics')" class="px-3 py-1.5 rounded text-slate-400 hover:text-white">Analytics</button>
+        <button onclick="switchTab('alerts')" class="px-3 py-1.5 rounded text-slate-400 hover:text-white">Alerts</button>
+        <button onclick="switchTab('hardware')" class="px-3 py-1.5 rounded text-slate-400 hover:text-white">Hardware Setup</button>
+        <button onclick="switchTab('settings')" class="px-3 py-1.5 rounded text-slate-400 hover:text-white">Settings</button>
+    </div>
+
+    <!-- MAIN VIEW CONTAINER -->
+    <main class="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8 space-y-8">
+
+        <!-- ========================================================================= -->
+        <!-- TAB 1: OVERVIEW -->
+        <!-- ========================================================================= -->
+        <section id="tab-overview" class="tab-pane space-y-6">
+            <!-- Welcome & Quick Status Banner -->
+            <div class="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 p-5 rounded-xl bg-slate-900/60 border border-slate-800">
+                <div>
+                    <h1 class="text-xl sm:text-2xl font-bold tracking-tight text-white">Botanical Operations Overview</h1>
+                    <p class="text-xs sm:text-sm text-slate-400 mt-1">
+                        Real-time agricultural telemetry from registered ESP32 nodes and environmental microcontrollers.
+                    </p>
+                </div>
+                <div class="flex items-center gap-3 flex-wrap">
+                    <span id="quickAlertTicker" class="text-xs text-slate-400 flex items-center gap-1.5">
+                        <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
+                        <span>All systems nominal</span>
+                    </span>
+                    <button onclick="switchTab('plants')" class="px-3 py-1.5 text-xs font-semibold bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg transition shadow-sm">
+                        + Add Plant Profile
+                    </button>
+                </div>
+            </div>
+
+            <!-- KPI Summary Cards -->
+            <div class="grid grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4">
+                <div class="p-4 rounded-xl bg-slate-900 border border-slate-800">
+                    <div class="text-xs text-slate-400 font-medium">Registered Plants</div>
+                    <div id="kpiTotalPlants" class="text-2xl sm:text-3xl font-bold font-mono text-white mt-1">4</div>
+                    <div class="text-[11px] text-slate-500 mt-1">Living collections</div>
+                </div>
+                <div class="p-4 rounded-xl bg-slate-900 border border-slate-800">
+                    <div class="text-xs text-slate-400 font-medium">Online ESP32s</div>
+                    <div id="kpiOnlineDevices" class="text-2xl sm:text-3xl font-bold font-mono text-emerald-400 mt-1">1</div>
+                    <div class="text-[11px] text-slate-500 mt-1">Active hardware nodes</div>
+                </div>
+                <div class="p-4 rounded-xl bg-slate-900 border border-slate-800">
+                    <div class="text-xs text-slate-400 font-medium">Offline Devices</div>
+                    <div id="kpiOfflineDevices" class="text-2xl sm:text-3xl font-bold font-mono text-slate-400 mt-1">1</div>
+                    <div class="text-[11px] text-slate-500 mt-1">Bench standby</div>
+                </div>
+                <div class="p-4 rounded-xl bg-slate-900 border border-slate-800">
+                    <div class="text-xs text-slate-400 font-medium">Healthy Plants</div>
+                    <div id="kpiHealthyPlants" class="text-2xl sm:text-3xl font-bold font-mono text-emerald-400 mt-1">3</div>
+                    <div class="text-[11px] text-slate-500 mt-1">Score &gt;= 70/100</div>
+                </div>
+                <div class="p-4 rounded-xl bg-slate-900 border border-slate-800 col-span-2 lg:col-span-1">
+                    <div class="text-xs text-slate-400 font-medium">Requires Attention</div>
+                    <div id="kpiAttentionPlants" class="text-2xl sm:text-3xl font-bold font-mono text-amber-400 mt-1">1</div>
+                    <div class="text-[11px] text-slate-500 mt-1">Substrate / environmental alert</div>
+                </div>
+            </div>
+
+            <!-- ThingSpeak IoT Channel Live Telemetry Banner -->
+            <div id="thingspeakOverviewCard" class="p-5 rounded-xl bg-gradient-to-r from-slate-900 via-sky-950/30 to-slate-900 border border-sky-900/50 shadow-lg space-y-4">
+                <div class="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
+                    <div class="space-y-1">
+                        <div class="flex items-center gap-2 flex-wrap">
+                            <span class="px-2 py-0.5 rounded text-[11px] font-mono font-semibold bg-sky-500/20 text-sky-400 border border-sky-500/30">
+                                THINGSPEAK IOT CLOUD
+                            </span>
+                            <span id="tsChannelName" class="text-sm sm:text-base font-bold text-white">Smart Agriculture</span>
+                            <span class="text-xs text-slate-400 font-mono">(Channel #<span id="tsChannelId">1729295</span>)</span>
+                        </div>
+                        <p id="tsChannelDesc" class="text-xs text-slate-400 max-w-2xl">
+                            Live telemetry stream from public ThingSpeak IoT node with environmental temperature, air humidity, light level, and soil moisture sensors.
+                        </p>
+                    </div>
+
+                    <div class="flex items-center gap-3 flex-wrap self-stretch lg:self-auto justify-between lg:justify-end">
+                        <div class="flex items-center gap-2">
+                            <div id="tsStatusPill" class="flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold border bg-amber-500/10 border-amber-500/30 text-amber-300">
+                                <span id="tsStatusDot" class="w-2 h-2 rounded-full bg-amber-400"></span>
+                                <span id="tsStatusLabel">Stale (Historical Data)</span>
+                            </div>
+                            <span class="text-[11px] font-mono text-slate-400">
+                                Poll: <span id="tsCountdown" class="text-sky-400 font-bold">20</span>s
+                            </span>
+                        </div>
+
+                        <div class="flex items-center gap-2">
+                            <button id="tsBtnRefresh" onclick="manualRefreshThingSpeak()" class="px-3 py-1.5 text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white rounded-lg transition border border-slate-700 flex items-center gap-1.5">
+                                <span id="tsRefreshSpinner" class="hidden animate-spin">⟳</span>
+                                <span id="tsRefreshIcon">🔄</span>
+                                <span>Refresh</span>
+                            </button>
+                            <button onclick="openConnectDeviceModal()" class="px-3 py-1.5 text-xs font-semibold bg-sky-600 hover:bg-sky-500 text-white rounded-lg transition shadow-sm flex items-center gap-1">
+                                <span>⚙️ Configure</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Timestamp & Diagnostic Reason Banner -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-3 pt-2 border-t border-slate-800/80 text-xs">
+                    <div class="flex items-center gap-2 text-slate-300">
+                        <span class="text-slate-500 font-medium">Latest Received Telemetry:</span>
+                        <span id="tsLatestTimestamp" class="font-mono text-sky-300 font-semibold">Tue, 12 Jul 2022 06:42:51 GMT</span>
+                        <span id="tsLatestTimeAge" class="text-[11px] text-slate-400">(~1578d ago)</span>
+                    </div>
+                    <div class="text-slate-400 text-right md:text-right flex items-center justify-start md:justify-end gap-1.5">
+                        <span id="tsReasonText" class="truncate text-[11px] text-slate-400" title="Historical readings present; hardware standby">
+                            Historical hardware feeds recorded (20 entries retrieved)
+                        </span>
+                    </div>
+                </div>
+
+                <!-- 4 Real Sensor Feeds Quick Chips -->
+                <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1">
+                    <div class="p-2.5 rounded-lg bg-slate-950/60 border border-slate-800/80 flex flex-col">
+                        <span class="text-[10px] text-slate-400 uppercase font-mono">field1: Ambient Temp</span>
+                        <span id="tsChipTemp" class="text-lg font-bold font-mono text-rose-400 mt-0.5">24.5°C</span>
+                    </div>
+                    <div class="p-2.5 rounded-lg bg-slate-950/60 border border-slate-800/80 flex flex-col">
+                        <span class="text-[10px] text-slate-400 uppercase font-mono">field2: Air Humidity</span>
+                        <span id="tsChipHum" class="text-lg font-bold font-mono text-purple-400 mt-0.5">97.2%</span>
+                    </div>
+                    <div class="p-2.5 rounded-lg bg-slate-950/60 border border-slate-800/80 flex flex-col">
+                        <span class="text-[10px] text-slate-400 uppercase font-mono">field3: Light Level</span>
+                        <span id="tsChipLight" class="text-lg font-bold font-mono text-amber-400 mt-0.5">72 lx</span>
+                    </div>
+                    <div class="p-2.5 rounded-lg bg-slate-950/60 border border-slate-800/80 flex flex-col">
+                        <span class="text-[10px] text-slate-400 uppercase font-mono">field4: Soil Moisture</span>
+                        <span id="tsChipMoisture" class="text-lg font-bold font-mono text-emerald-400 mt-0.5">0.0%</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Environmental Sensor Gauges Grid -->
+            <div>
+                <div class="flex items-center justify-between mb-3">
+                    <h2 class="text-base font-semibold text-white">Live Environmental Readings</h2>
+                    <span class="text-xs text-slate-400">Node: <span id="telemetryDeviceName" class="text-slate-300 font-mono">ThingSpeak: Smart Agriculture (1729295)</span></span>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+                    <!-- Soil Moisture Card -->
+                    <div class="p-4 rounded-xl bg-slate-900 border border-slate-800 hover:border-slate-700 transition flex flex-col justify-between">
+                        <div class="flex items-center justify-between text-xs text-slate-400">
+                            <span class="font-medium">Soil Moisture</span>
+                            <a href="moisture.html" class="text-emerald-400 hover:underline">Detail ↗</a>
+                        </div>
+                        <div class="my-3">
+                            <div id="ovMoisture" class="text-3xl font-bold font-mono text-emerald-400 tabular-nums">0.0%</div>
+                            <div id="ovMoistureCond" class="text-xs font-semibold text-rose-400 mt-1">Dry Substrate (Warning)</div>
+                        </div>
+                        <div id="ovMoistureSource" class="text-[11px] text-slate-500 pt-2 border-t border-slate-800/80">
+                            ThingSpeak field4 (Soil Moisture)
+                        </div>
+                    </div>
+
+                    <!-- Temperature Card -->
+                    <div class="p-4 rounded-xl bg-slate-900 border border-slate-800 hover:border-slate-700 transition flex flex-col justify-between">
+                        <div class="flex items-center justify-between text-xs text-slate-400">
+                            <span class="font-medium">Ambient Temp</span>
+                            <a href="temperature.html" class="text-rose-400 hover:underline">Detail ↗</a>
+                        </div>
+                        <div class="my-3">
+                            <div id="ovTemp" class="text-3xl font-bold font-mono text-rose-400 tabular-nums">24.5°C</div>
+                            <div id="ovTempCond" class="text-xs font-semibold text-emerald-400/90 mt-1">Thermal Comfort Range</div>
+                        </div>
+                        <div id="ovTempSource" class="text-[11px] text-slate-500 pt-2 border-t border-slate-800/80">
+                            ThingSpeak field1 (Environmental Temp)
+                        </div>
+                    </div>
+
+                    <!-- Air Humidity Card -->
+                    <div class="p-4 rounded-xl bg-slate-900 border border-slate-800 hover:border-slate-700 transition flex flex-col justify-between">
+                        <div class="flex items-center justify-between text-xs text-slate-400">
+                            <span class="font-medium">Air Humidity</span>
+                            <a href="humidity.html" class="text-purple-400 hover:underline">Detail ↗</a>
+                        </div>
+                        <div class="my-3">
+                            <div id="ovHum" class="text-3xl font-bold font-mono text-purple-400 tabular-nums">97.2%</div>
+                            <div id="ovHumCond" class="text-xs font-semibold text-sky-400 mt-1">High Humidity Saturated</div>
+                        </div>
+                        <div id="ovHumSource" class="text-[11px] text-slate-500 pt-2 border-t border-slate-800/80">
+                            ThingSpeak field2 (Air Humidity)
+                        </div>
+                    </div>
+
+                    <!-- Light Intensity Card -->
+                    <div class="p-4 rounded-xl bg-slate-900 border border-slate-800 hover:border-slate-700 transition flex flex-col justify-between">
+                        <div class="flex items-center justify-between text-xs text-slate-400">
+                            <span class="font-medium">Light Intensity</span>
+                            <span class="text-amber-400 text-[11px] font-mono">field3</span>
+                        </div>
+                        <div class="my-3">
+                            <div id="ovLight" class="text-3xl font-bold font-mono text-amber-400 tabular-nums">72 lx</div>
+                            <div id="ovLightCond" class="text-xs font-semibold text-amber-300 mt-1">Low / Dim Ambient Light</div>
+                        </div>
+                        <div id="ovLightSource" class="text-[11px] text-slate-500 pt-2 border-t border-slate-800/80">
+                            ThingSpeak field3 (Light Level)
+                        </div>
+                    </div>
+
+                    <!-- Water Reservoir Tank Level -->
+                    <div class="p-4 rounded-xl bg-slate-900 border border-slate-800 hover:border-slate-700 transition flex flex-col justify-between">
+                        <div class="flex items-center justify-between text-xs text-slate-400">
+                            <span class="font-medium">Water Tank Level</span>
+                            <span class="text-sky-400 text-[11px] font-mono">HC-SR04</span>
+                        </div>
+                        <div class="my-3">
+                            <div id="ovTank" class="text-3xl font-bold font-mono text-sky-400 tabular-nums">82%</div>
+                            <div id="ovTankCond" class="text-xs font-semibold text-emerald-400/90 mt-1">Reservoir Normal</div>
+                        </div>
+                        <div class="w-full bg-slate-800 h-2 rounded-full overflow-hidden">
+                            <div id="ovTankBar" class="bg-sky-500 h-full rounded-full transition-all duration-500" style="width: 82%;"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Plants Quick Grid & Recent Actuator History -->
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <!-- Managed Plants Quick Overview -->
+                <div class="lg:col-span-2 space-y-4">
+                    <div class="flex items-center justify-between">
+                        <h2 class="text-base font-semibold text-white">Monitored Plant Specimens</h2>
+                        <button onclick="switchTab('plants')" class="text-xs text-emerald-400 hover:underline">View All Plants →</button>
+                    </div>
+                    <div id="overviewPlantsList" class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <!-- Populated dynamically via JS -->
+                    </div>
+                </div>
+
+                <!-- Actuator States & Quick Control -->
+                <div class="space-y-4">
+                    <div class="flex items-center justify-between">
+                        <h2 class="text-base font-semibold text-white">Actuator Relays</h2>
+                        <button onclick="switchTab('automation')" class="text-xs text-emerald-400 hover:underline">Control Center →</button>
+                    </div>
+                    <div id="overviewActuatorsList" class="p-4 rounded-xl bg-slate-900 border border-slate-800 space-y-3">
+                        <!-- Populated dynamically -->
+                    </div>
+
+                    <!-- Quick Guide Card -->
+                    <div class="p-4 rounded-xl bg-gradient-to-br from-emerald-950/40 to-slate-900 border border-emerald-900/40">
+                        <div class="text-xs font-semibold text-emerald-400 uppercase tracking-wider">Hardware Integration Ready</div>
+                        <p class="text-xs text-slate-300 mt-1.5 leading-relaxed">
+                            Connect your physical ESP32 via HTTP POST or MQTT to stream real telemetry. No hardcoded or fake random values in production mode.
+                        </p>
+                        <button onclick="switchTab('hardware')" class="mt-3 px-3 py-1.5 text-xs font-semibold bg-emerald-600/30 hover:bg-emerald-600/50 text-emerald-300 border border-emerald-500/30 rounded-lg transition">
+                            View ESP32 Wiring & Firmware Code →
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ========================================================================= -->
+        <!-- TAB 2: MY PLANTS -->
+        <!-- ========================================================================= -->
+        <section id="tab-plants" class="tab-pane hidden space-y-6">
+            <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                <div>
+                    <h1 class="text-xl sm:text-2xl font-bold tracking-tight text-white">Botanical Profiles & Diagnostics</h1>
+                    <p class="text-xs sm:text-sm text-slate-400 mt-1">
+                        Individualized environmental thresholds, real-time health scores, and targeted botanical care actions.
+                    </p>
+                </div>
+                <button onclick="openAddPlantModal()" class="px-4 py-2 text-xs font-semibold bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg transition shadow-sm flex items-center gap-1.5">
+                    <span>+</span>
+                    <span>Add New Plant</span>
+                </button>
+            </div>
+
+            <!-- Plants Card Grid -->
+            <div id="plantsGrid" class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <!-- Dynamically populated from store -->
+            </div>
+        </section>
+
+        <!-- ========================================================================= -->
+        <!-- TAB 3: LIVE MONITORING -->
+        <!-- ========================================================================= -->
+        <section id="tab-monitoring" class="tab-pane hidden space-y-6">
+            <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                <div>
+                    <h1 class="text-xl sm:text-2xl font-bold tracking-tight text-white">Multi-Sensor Live Telemetry</h1>
+                    <p class="text-xs sm:text-sm text-slate-400 mt-1">
+                        Sub-second sensor streams with dry/wet soil calibration and standalone detail views.
+                    </p>
+                </div>
+                <!-- Links to preserved dedicated detail pages -->
+                <div class="flex flex-wrap gap-2 text-xs">
+                    <a href="moisture.html" class="px-3 py-1.5 rounded-md bg-slate-800 border border-slate-700 hover:border-slate-500 text-sky-400 transition">Moisture View ↗</a>
+                    <a href="temperature.html" class="px-3 py-1.5 rounded-md bg-slate-800 border border-slate-700 hover:border-slate-500 text-rose-400 transition">Temp View ↗</a>
+                    <a href="humidity.html" class="px-3 py-1.5 rounded-md bg-slate-800 border border-slate-700 hover:border-slate-500 text-purple-400 transition">Humidity View ↗</a>
+                    <a href="health.html" class="px-3 py-1.5 rounded-md bg-slate-800 border border-slate-700 hover:border-slate-500 text-amber-400 transition">Health View ↗</a>
+                </div>
+            </div>
+
+            <!-- Real-Time Chart Multi-View -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <!-- Soil Moisture Live Chart -->
+                <div class="p-4 rounded-xl bg-slate-900 border border-slate-800 space-y-3">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <div class="text-sm font-semibold text-white">Soil Moisture Trend (%)</div>
+                            <div class="text-xs text-slate-400">Capacitive Sensor on GPIO 34</div>
+                        </div>
+                        <span id="liveMoistureBadge" class="text-xs font-mono font-bold text-sky-400 bg-sky-500/10 border border-sky-500/30 px-2 py-0.5 rounded">--%</span>
+                    </div>
+                    <div class="h-64">
+                        <canvas id="liveMoistureChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- Temperature & Humidity Dual Chart -->
+                <div class="p-4 rounded-xl bg-slate-900 border border-slate-800 space-y-3">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <div class="text-sm font-semibold text-white">Atmospheric Ambient (Temp vs Humidity)</div>
+                            <div class="text-xs text-slate-400">DHT22 Digital Sensor on GPIO 4</div>
+                        </div>
+                        <span id="liveTempHumBadge" class="text-xs font-mono font-bold text-purple-400 bg-purple-500/10 border border-purple-500/30 px-2 py-0.5 rounded">--°C / --%</span>
+                    </div>
+                    <div class="h-64">
+                        <canvas id="liveTempHumChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Calibration & Connected Sensors Status -->
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <!-- Soil Moisture Calibration Tool -->
+                <div class="p-5 rounded-xl bg-slate-900 border border-slate-800 space-y-4 lg:col-span-2">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <h3 class="text-sm font-semibold text-white">Capacitive Moisture Sensor Calibration</h3>
+                            <p class="text-xs text-slate-400 mt-0.5">Map ESP32 12-bit ADC voltage range (0 - 4095) to 0% - 100% soil moisture.</p>
+                        </div>
+                        <span class="text-xs font-mono text-emerald-400 bg-emerald-500/10 border border-emerald-500/30 px-2 py-0.5 rounded">Active Calibration</span>
+                    </div>
+
+                    <div class="grid grid-cols-3 gap-3 p-3 bg-slate-950/60 rounded-lg border border-slate-800 text-center">
+                        <div>
+                            <div class="text-[11px] text-slate-400">Current Raw ADC</div>
+                            <div id="calCurrentAdc" class="text-xl font-bold font-mono text-white mt-0.5">2156</div>
+                        </div>
+                        <div>
+                            <div class="text-[11px] text-slate-400">Dry Air Baseline (0%)</div>
+                            <div id="calDryAdc" class="text-xl font-bold font-mono text-amber-400 mt-0.5">3200</div>
+                        </div>
+                        <div>
+                            <div class="text-[11px] text-slate-400">Saturated Soil (100%)</div>
+                            <div id="calWetAdc" class="text-xl font-bold font-mono text-sky-400 mt-0.5">1400</div>
+                        </div>
+                    </div>
+
+                    <div class="flex flex-wrap items-center gap-3">
+                        <button onclick="setCalibrationPoint('dry')" class="px-3.5 py-2 text-xs font-semibold bg-amber-600/30 hover:bg-amber-600/50 text-amber-300 border border-amber-500/40 rounded-lg transition">
+                            Record Current as Dry Air (0%)
+                        </button>
+                        <button onclick="setCalibrationPoint('wet')" class="px-3.5 py-2 text-xs font-semibold bg-sky-600/30 hover:bg-sky-600/50 text-sky-300 border border-sky-500/40 rounded-lg transition">
+                            Record Current as Saturated Soil (100%)
+                        </button>
+                        <button onclick="resetCalibration()" class="px-3.5 py-2 text-xs font-semibold text-slate-400 hover:text-white border border-slate-700 rounded-lg transition">
+                            Reset Defaults
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Sensor Hardware Connection Table -->
+                <div class="p-5 rounded-xl bg-slate-900 border border-slate-800 space-y-3">
+                    <h3 class="text-sm font-semibold text-white">Hardware Sensor Verification</h3>
+                    <p class="text-xs text-slate-400">Only sensors with real received telemetry are verified.</p>
+                    
+                    <div id="hardwareSensorList" class="space-y-2 text-xs pt-1">
+                        <!-- Populated dynamically -->
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ========================================================================= -->
+        <!-- TAB 4: DEVICES (ESP32 MANAGEMENT) -->
+        <!-- ========================================================================= -->
+        <section id="tab-devices" class="tab-pane hidden space-y-6">
+            <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                <div>
+                    <h1 class="text-xl sm:text-2xl font-bold tracking-tight text-white">ESP32 Device Management</h1>
+                    <p class="text-xs sm:text-sm text-slate-400 mt-1">
+                        Register hardware microcontrollers, inspect Wi-Fi signal, assign pins, and manage device security tokens.
+                    </p>
+                </div>
+                <div class="flex items-center gap-2">
+                    <button onclick="openConnectDeviceModal()" class="px-4 py-2 text-xs font-semibold bg-sky-600 hover:bg-sky-500 text-white rounded-lg transition shadow-sm flex items-center gap-1.5">
+                        <span>📡</span>
+                        <span>Connect ThingSpeak Device</span>
+                    </button>
+                    <button onclick="openRegisterDeviceModal()" class="px-4 py-2 text-xs font-semibold bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg transition shadow-sm flex items-center gap-1.5">
+                        <span>+</span>
+                        <span>Register New ESP32</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- ThingSpeak Cloud IoT Channel Management Card -->
+            <div id="tsDevicesSection" class="p-5 rounded-xl bg-slate-900 border border-sky-900/60 shadow-md space-y-4">
+                <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-3 border-b border-slate-800">
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-lg bg-sky-500/10 border border-sky-500/30 flex items-center justify-center text-xl text-sky-400">
+                            📡
+                        </div>
+                        <div>
+                            <div class="flex items-center gap-2">
+                                <h3 class="text-sm font-bold text-white">ThingSpeak IoT Cloud Channel Gateway</h3>
+                                <span id="tsDeviceStatusBadge" class="px-2 py-0.5 rounded text-[10px] font-semibold font-mono bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                                    STALE
+                                </span>
+                            </div>
+                            <p class="text-xs text-slate-400 mt-0.5">
+                                Public IoT REST API endpoint automatically polled every 20s. Feeds map to environmental sensors.
+                            </p>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <button onclick="manualRefreshThingSpeak()" class="px-3 py-1.5 text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg transition border border-slate-700 flex items-center gap-1">
+                            <span>🔄</span>
+                            <span>Fetch Feeds</span>
+                        </button>
+                        <button onclick="openConnectDeviceModal()" class="px-3 py-1.5 text-xs font-semibold bg-sky-600 hover:bg-sky-500 text-white rounded-lg transition shadow-sm flex items-center gap-1">
+                            <span>⚙️ Switch Channel</span>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-4 text-xs">
+                    <div class="p-3 rounded-lg bg-slate-950/60 border border-slate-800/80">
+                        <span class="text-slate-400 block text-[11px]">Channel ID</span>
+                        <span id="tsDevChannelId" class="text-base font-bold font-mono text-white mt-0.5 block">1729295</span>
+                        <span id="tsDevChannelName" class="text-[11px] text-sky-400 truncate block">Smart Agriculture</span>
+                    </div>
+                    <div class="p-3 rounded-lg bg-slate-950/60 border border-slate-800/80">
+                        <span class="text-slate-400 block text-[11px]">Last Feed Timestamp</span>
+                        <span id="tsDevLastTime" class="text-xs font-semibold font-mono text-white mt-0.5 block">2022-07-12 06:42:51 UTC</span>
+                        <span id="tsDevTimeAgo" class="text-[11px] text-slate-500 block">Entry #1365 recorded</span>
+                    </div>
+                    <div class="p-3 rounded-lg bg-slate-950/60 border border-slate-800/80">
+                        <span class="text-slate-400 block text-[11px]">Historical Feeds In Memory</span>
+                        <span id="tsDevFeedCount" class="text-base font-bold font-mono text-white mt-0.5 block">20 Feeds</span>
+                        <span class="text-[11px] text-emerald-400 block">4 Active Sensor Fields</span>
+                    </div>
+                    <div class="p-3 rounded-lg bg-slate-950/60 border border-slate-800/80">
+                        <span class="text-slate-400 block text-[11px]">Hardware Node State</span>
+                        <span id="tsDevHardwareState" class="text-xs font-bold text-amber-400 mt-0.5 block">Stale (Standby)</span>
+                        <span id="tsDevReasonSnippet" class="text-[10px] text-slate-400 block truncate" title="Hardware node inactive">Last reading >2h ago</span>
+                    </div>
+                </div>
+
+                <!-- Live Field Mapping Table -->
+                <div class="overflow-x-auto pt-1">
+                    <table class="w-full text-xs text-left">
+                        <thead class="text-slate-400 border-b border-slate-800">
+                            <tr>
+                                <th class="pb-2">ThingSpeak Field</th>
+                                <th class="pb-2">Sensor Function</th>
+                                <th class="pb-2">Target Metric</th>
+                                <th class="pb-2">Latest Hardware Reading</th>
+                                <th class="pb-2">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-800/60 font-mono text-slate-300">
+                            <tr>
+                                <td class="py-2.5 text-sky-400 font-bold">field1</td>
+                                <td class="py-2.5">Environmental Temperature</td>
+                                <td class="py-2.5 font-sans">Ambient Temp (°C)</td>
+                                <td id="tsTableRowTemp" class="py-2.5 font-bold text-rose-400">24.5°C</td>
+                                <td class="py-2.5"><span class="px-2 py-0.5 rounded text-[10px] bg-emerald-500/20 text-emerald-400">Verified</span></td>
+                            </tr>
+                            <tr>
+                                <td class="py-2.5 text-sky-400 font-bold">field2</td>
+                                <td class="py-2.5">Air Humidity</td>
+                                <td class="py-2.5 font-sans">Relative Humidity (%)</td>
+                                <td id="tsTableRowHum" class="py-2.5 font-bold text-purple-400">97.2%</td>
+                                <td class="py-2.5"><span class="px-2 py-0.5 rounded text-[10px] bg-emerald-500/20 text-emerald-400">Verified</span></td>
+                            </tr>
+                            <tr>
+                                <td class="py-2.5 text-sky-400 font-bold">field3</td>
+                                <td class="py-2.5">Light Level</td>
+                                <td class="py-2.5 font-sans">Ambient Illuminance (lx)</td>
+                                <td id="tsTableRowLight" class="py-2.5 font-bold text-amber-400">72 lx</td>
+                                <td class="py-2.5"><span class="px-2 py-0.5 rounded text-[10px] bg-emerald-500/20 text-emerald-400">Verified</span></td>
+                            </tr>
+                            <tr>
+                                <td class="py-2.5 text-sky-400 font-bold">field4</td>
+                                <td class="py-2.5">Soil Moisture Level</td>
+                                <td class="py-2.5 font-sans">Substrate Moisture (%)</td>
+                                <td id="tsTableRowMoisture" class="py-2.5 font-bold text-emerald-400">0.0%</td>
+                                <td class="py-2.5"><span class="px-2 py-0.5 rounded text-[10px] bg-emerald-500/20 text-emerald-400">Verified</span></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="flex items-center justify-between pt-2">
+                <h2 class="text-base font-semibold text-white">Local ESP32 Hardware Microcontrollers</h2>
+                <span class="text-xs text-slate-400">Direct HTTP / MQTT Nodes</span>
+            </div>
+
+            <!-- Device Cards Grid -->
+            <div id="devicesList" class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <!-- Populated dynamically -->
+            </div>
+
+            <!-- Device Diagnostics Table -->
+            <div class="p-5 rounded-xl bg-slate-900 border border-slate-800 space-y-4">
+                <div class="flex items-center justify-between">
+                    <h3 class="text-sm font-semibold text-white">Device Diagnostics & Event Log</h3>
+                    <span class="text-xs font-mono text-slate-400">Heartbeat check: 30s timeout</span>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-xs text-left">
+                        <thead class="text-slate-400 border-b border-slate-800">
+                            <tr>
+                                <th class="pb-2">Time</th>
+                                <th class="pb-2">Device ID</th>
+                                <th class="pb-2">Protocol</th>
+                                <th class="pb-2">Wi-Fi RSSI</th>
+                                <th class="pb-2">Packet Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="deviceLogsBody" class="divide-y divide-slate-800/60 font-mono text-slate-300">
+                            <!-- Populated dynamically -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- ========================================================================= -->
+        <!-- TAB 5: AUTOMATION & IRRIGATION -->
+        <!-- ========================================================================= -->
+        <section id="tab-automation" class="tab-pane hidden space-y-6">
+            <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                <div>
+                    <h1 class="text-xl sm:text-2xl font-bold tracking-tight text-white">Automatic Irrigation & Actuator Center</h1>
+                    <p class="text-xs sm:text-sm text-slate-400 mt-1">
+                        Closed-loop irrigation automation with water reservoir safety gate, cooldown timers, and confirmed relay states.
+                    </p>
+                </div>
+                <button onclick="triggerEmergencyStop()" class="px-4 py-2 text-xs font-semibold bg-rose-600 hover:bg-rose-500 text-white rounded-lg transition border border-rose-500 shadow-sm flex items-center gap-1.5">
+                    🛑 Immediate Emergency Stop
+                </button>
+            </div>
+
+            <!-- Irrigation Automation Settings Panel -->
+            <div class="p-6 rounded-xl bg-slate-900 border border-slate-800 space-y-6">
+                <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-4 border-b border-slate-800">
+                    <div>
+                        <h3 class="text-base font-semibold text-white">Smart Irrigation Automation Policy</h3>
+                        <p class="text-xs text-slate-400 mt-0.5">Autonomous pump triggers based on soil moisture threshold and reservoir depth.</p>
+                    </div>
+                    <div class="flex items-center gap-3">
+                        <label class="relative inline-flex items-center cursor-pointer">
+                            <input type="checkbox" id="autoWateringToggle" class="sr-only peer" onchange="toggleAutoWatering(this.checked)">
+                            <div class="w-11 h-6 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-600"></div>
+                            <span id="autoWateringLabel" class="ml-3 text-xs font-semibold text-slate-300">AUTO ACTIVE</span>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div>
+                        <label class="block text-xs font-medium text-slate-400 mb-1">Trigger Threshold (% Moisture)</label>
+                        <div class="flex items-center gap-2">
+                            <input type="number" id="cfgMoistureThreshold" min="15" max="60" value="40" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs font-mono text-white focus:outline-none focus:border-emerald-500">
+                            <span class="text-xs text-slate-400">%</span>
+                        </div>
+                        <span class="text-[11px] text-slate-500">Water when moisture drops below</span>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-medium text-slate-400 mb-1">Watering Duration</label>
+                        <div class="flex items-center gap-2">
+                            <input type="number" id="cfgWaterDuration" min="2" max="30" value="8" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs font-mono text-white focus:outline-none focus:border-emerald-500">
+                            <span class="text-xs text-slate-400">sec</span>
+                        </div>
+                        <span class="text-[11px] text-slate-500">Pump runtime per cycle</span>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-medium text-slate-400 mb-1">Cooldown Interval</label>
+                        <div class="flex items-center gap-2">
+                            <input type="number" id="cfgCooldown" min="5" max="120" value="30" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs font-mono text-white focus:outline-none focus:border-emerald-500">
+                            <span class="text-xs text-slate-400">min</span>
+                        </div>
+                        <span class="text-[11px] text-slate-500">Soil absorption pause</span>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-medium text-slate-400 mb-1">Min Tank Reservoir</label>
+                        <div class="flex items-center gap-2">
+                            <input type="number" id="cfgMinTank" min="5" max="30" value="15" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs font-mono text-white focus:outline-none focus:border-emerald-500">
+                            <span class="text-xs text-slate-400">%</span>
+                        </div>
+                        <span class="text-[11px] text-slate-500">Dry-run pump protection gate</span>
+                    </div>
+                </div>
+
+                <div class="flex justify-end pt-2">
+                    <button onclick="saveIrrigationSettings()" class="px-4 py-2 text-xs font-semibold bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg transition shadow-sm">
+                        Save Automation Policy
+                    </button>
+                </div>
+            </div>
+
+            <!-- Actuators Grid -->
+            <div>
+                <h2 class="text-base font-semibold text-white mb-4">Relay-Controlled Hardware Equipment</h2>
+                <div id="actuatorsGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <!-- Populated dynamically via JS -->
+                </div>
+            </div>
+
+            <!-- Actuator History Table -->
+            <div class="p-5 rounded-xl bg-slate-900 border border-slate-800 space-y-4">
+                <h3 class="text-sm font-semibold text-white">Actuator Operation History</h3>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-xs text-left">
+                        <thead class="text-slate-400 border-b border-slate-800">
+                            <tr>
+                                <th class="pb-2">Timestamp</th>
+                                <th class="pb-2">Device / Relay</th>
+                                <th class="pb-2">Action</th>
+                                <th class="pb-2">Duration</th>
+                                <th class="pb-2">Triggered By</th>
+                            </tr>
+                        </thead>
+                        <tbody id="actuatorHistoryBody" class="divide-y divide-slate-800/60 font-mono text-slate-300">
+                            <!-- Populated dynamically -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- ========================================================================= -->
+        <!-- TAB 6: ANALYTICS & REPORTS -->
+        <!-- ========================================================================= -->
+        <section id="tab-analytics" class="tab-pane hidden space-y-6">
+            <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                <div>
+                    <h1 class="text-xl sm:text-2xl font-bold tracking-tight text-white">Historical Telemetry & Analytics</h1>
+                    <p class="text-xs sm:text-sm text-slate-400 mt-1">
+                        Multi-timescale environmental trends, irrigation water consumption, and CSV data exports.
+                    </p>
+                </div>
+                <div class="flex items-center gap-2">
+                    <div class="inline-flex rounded-lg bg-slate-900 p-1 border border-slate-800 text-xs">
+                        <button onclick="changeAnalyticsRange('1h')" data-range="1h" class="range-btn px-2.5 py-1 rounded text-slate-400 hover:text-white">1H</button>
+                        <button onclick="changeAnalyticsRange('24h')" data-range="24h" class="range-btn px-2.5 py-1 rounded text-white bg-slate-800">24H</button>
+                        <button onclick="changeAnalyticsRange('7d')" data-range="7d" class="range-btn px-2.5 py-1 rounded text-slate-400 hover:text-white">7D</button>
+                        <button onclick="changeAnalyticsRange('30d')" data-range="30d" class="range-btn px-2.5 py-1 rounded text-slate-400 hover:text-white">30D</button>
+                    </div>
+                    <a href="/api/v1/telemetry/export.csv" download class="px-3 py-1.5 text-xs font-semibold bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg transition flex items-center gap-1.5 shadow-sm">
+                        <span>📥</span>
+                        <span>Export CSV</span>
+                    </a>
+                </div>
+            </div>
+
+            <!-- Analytics Charts -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div class="p-4 rounded-xl bg-slate-900 border border-slate-800 space-y-3">
+                    <h3 class="text-sm font-semibold text-white">Soil Moisture Depletion & Watering Points</h3>
+                    <div class="h-64">
+                        <canvas id="analyticsMoistureChart"></canvas>
+                    </div>
+                </div>
+
+                <div class="p-4 rounded-xl bg-slate-900 border border-slate-800 space-y-3">
+                    <h3 class="text-sm font-semibold text-white">Temperature (°C) & Humidity (%) Correlation</h3>
+                    <div class="h-64">
+                        <canvas id="analyticsTempHumChart"></canvas>
+                    </div>
+                </div>
+
+                <div class="p-4 rounded-xl bg-slate-900 border border-slate-800 space-y-3">
+                    <h3 class="text-sm font-semibold text-white">Daily Sunlight Intensity (Lux)</h3>
+                    <div class="h-64">
+                        <canvas id="analyticsLightChart"></canvas>
+                    </div>
+                </div>
+
+                <div class="p-4 rounded-xl bg-slate-900 border border-slate-800 space-y-3">
+                    <h3 class="text-sm font-semibold text-white">Water Tank Reservoir Level (%)</h3>
+                    <div class="h-64">
+                        <canvas id="analyticsTankChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ========================================================================= -->
+        <!-- TAB 7: ALERTS CENTER -->
+        <!-- ========================================================================= -->
+        <section id="tab-alerts" class="tab-pane hidden space-y-6">
+            <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                <div>
+                    <h1 class="text-xl sm:text-2xl font-bold tracking-tight text-white">Incident & Alert Center</h1>
+                    <p class="text-xs sm:text-sm text-slate-400 mt-1">
+                        Active environmental warnings, low water reservoir alarms, and hardware communication timeouts.
+                    </p>
+                </div>
+                <div class="flex items-center gap-2">
+                    <button onclick="clearAllAlerts()" class="px-3 py-1.5 text-xs text-slate-400 hover:text-white border border-slate-800 rounded-lg hover:bg-slate-900 transition">
+                        Clear Resolved
+                    </button>
+                </div>
+            </div>
+
+            <!-- Alert Severity Filter & Stats -->
+            <div class="flex items-center gap-2 border-b border-slate-800 pb-3 text-xs">
+                <button onclick="filterAlerts('all')" data-alertfilter="all" class="alert-filter-btn px-3 py-1.5 rounded-md bg-slate-800 text-white font-medium">All Alerts</button>
+                <button onclick="filterAlerts('critical')" data-alertfilter="critical" class="alert-filter-btn px-3 py-1.5 rounded-md text-rose-400 hover:bg-slate-900">Critical</button>
+                <button onclick="filterAlerts('warning')" data-alertfilter="warning" class="alert-filter-btn px-3 py-1.5 rounded-md text-amber-400 hover:bg-slate-900">Warnings</button>
+                <button onclick="filterAlerts('info')" data-alertfilter="info" class="alert-filter-btn px-3 py-1.5 rounded-md text-sky-400 hover:bg-slate-900">System Info</button>
+            </div>
+
+            <!-- Alerts Feed -->
+            <div id="alertsFeedList" class="space-y-3">
+                <!-- Populated dynamically -->
+            </div>
+        </section>
+
+        <!-- ========================================================================= -->
+        <!-- TAB 8: HARDWARE SETUP & ESP32 FIRMWARE -->
+        <!-- ========================================================================= -->
+        <section id="tab-hardware" class="tab-pane hidden space-y-6">
+            <div>
+                <h1 class="text-xl sm:text-2xl font-bold tracking-tight text-white">Hardware Wiring & ESP32 Firmware Guide</h1>
+                <p class="text-xs sm:text-sm text-slate-400 mt-1">
+                    Complete electrical wiring schematics, GPIO pin mappings, power supply architecture, and ready-to-flash Arduino firmware.
+                </p>
+            </div>
+
+            <!-- Wiring Pinout Grid -->
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <!-- Soil Moisture -->
+                <div class="p-5 rounded-xl bg-slate-900 border border-slate-800 space-y-2.5">
+                    <div class="flex items-center justify-between">
+                        <h3 class="text-sm font-semibold text-white">Capacitive Soil Moisture v1.2 / v2.0</h3>
+                        <span class="text-[11px] font-mono text-sky-400 bg-sky-500/10 border border-sky-500/30 px-1.5 py-0.5 rounded">Analog</span>
+                    </div>
+                    <p class="text-xs text-slate-400">Resists soil corrosion by using capacitive frequency sensing rather than exposed metal electrodes.</p>
+                    <div class="p-3 bg-slate-950 rounded-lg font-mono text-xs text-slate-300 space-y-1">
+                        <div>VCC &rarr; <strong>ESP32 3.3V</strong> (or 5V if 3.3V regulator present)</div>
+                        <div>GND &rarr; <strong>ESP32 GND</strong> (Common Ground)</div>
+                        <div>AOUT &rarr; <strong>GPIO 34</strong> (ADC1_CH6, Input Only)</div>
+                    </div>
+                </div>
+
+                <!-- DHT22 / AM2302 -->
+                <div class="p-5 rounded-xl bg-slate-900 border border-slate-800 space-y-2.5">
+                    <div class="flex items-center justify-between">
+                        <h3 class="text-sm font-semibold text-white">DHT22 (AM2302) Temp & Humidity</h3>
+                        <span class="text-[11px] font-mono text-rose-400 bg-rose-500/10 border border-rose-500/30 px-1.5 py-0.5 rounded">Digital 1-Wire</span>
+                    </div>
+                    <p class="text-xs text-slate-400">High accuracy temperature (±0.5°C) and relative humidity (±2% RH).</p>
+                    <div class="p-3 bg-slate-950 rounded-lg font-mono text-xs text-slate-300 space-y-1">
+                        <div>VCC &rarr; <strong>ESP32 3.3V or 5V</strong></div>
+                        <div>DATA &rarr; <strong>GPIO 4</strong> (with 10k&Omega; pull-up to VCC)</div>
+                        <div>GND &rarr; <strong>ESP32 GND</strong></div>
+                    </div>
+                </div>
+
+                <!-- BH1750 Ambient Light -->
+                <div class="p-5 rounded-xl bg-slate-900 border border-slate-800 space-y-2.5">
+                    <div class="flex items-center justify-between">
+                        <h3 class="text-sm font-semibold text-white">BH1750 Ambient Light Sensor</h3>
+                        <span class="text-[11px] font-mono text-amber-400 bg-amber-500/10 border border-amber-500/30 px-1.5 py-0.5 rounded">I2C Digital</span>
+                    </div>
+                    <p class="text-xs text-slate-400">Calibrated illuminance measurement in Lux (1 - 65,535 lx).</p>
+                    <div class="p-3 bg-slate-950 rounded-lg font-mono text-xs text-slate-300 space-y-1">
+                        <div>VCC &rarr; <strong>ESP32 3.3V</strong></div>
+                        <div>GND &rarr; <strong>ESP32 GND</strong></div>
+                        <div>SCL &rarr; <strong>GPIO 22</strong> (Default I2C SCL)</div>
+                        <div>SDA &rarr; <strong>GPIO 21</strong> (Default I2C SDA)</div>
+                    </div>
+                </div>
+
+                <!-- Ultrasonic HC-SR04 -->
+                <div class="p-5 rounded-xl bg-slate-900 border border-slate-800 space-y-2.5">
+                    <div class="flex items-center justify-between">
+                        <h3 class="text-sm font-semibold text-white">HC-SR04 Ultrasonic Water Depth</h3>
+                        <span class="text-[11px] font-mono text-sky-400 bg-sky-500/10 border border-sky-500/30 px-1.5 py-0.5 rounded">Pulse Timing</span>
+                    </div>
+                    <p class="text-xs text-slate-400">Measures distance to water surface inside reservoir tank.</p>
+                    <div class="p-3 bg-slate-950 rounded-lg font-mono text-xs text-slate-300 space-y-1">
+                        <div>VCC &rarr; <strong>External 5V</strong> (or VIN)</div>
+                        <div>TRIG &rarr; <strong>GPIO 12</strong> (Output trigger)</div>
+                        <div>ECHO &rarr; <strong>GPIO 14</strong> (via 1k/2k voltage divider to 3.3V!)</div>
+                        <div>GND &rarr; <strong>ESP32 GND</strong></div>
+                    </div>
+                </div>
+
+                <!-- 4-Channel Relay Module -->
+                <div class="p-5 rounded-xl bg-slate-900 border border-slate-800 space-y-2.5">
+                    <div class="flex items-center justify-between">
+                        <h3 class="text-sm font-semibold text-white">4-Channel 5V Optocoupler Relay</h3>
+                        <span class="text-[11px] font-mono text-purple-400 bg-purple-500/10 border border-purple-500/30 px-1.5 py-0.5 rounded">Relay Control</span>
+                    </div>
+                    <p class="text-xs text-slate-400">Controls 12V/5V DC water pump, grow lights, fan, and humidifier.</p>
+                    <div class="p-3 bg-slate-950 rounded-lg font-mono text-xs text-slate-300 space-y-1">
+                        <div>VCC &rarr; <strong>External 5V</strong> (Remove JD-VCC jumper)</div>
+                        <div>IN1 (Pump) &rarr; <strong>GPIO 26</strong></div>
+                        <div>IN2 (Fan) &rarr; <strong>GPIO 27</strong></div>
+                        <div>IN3 (Lights) &rarr; <strong>GPIO 25</strong> / IN4 &rarr; <strong>GPIO 33</strong></div>
+                    </div>
+                </div>
+
+                <!-- Power Supply Architecture -->
+                <div class="p-5 rounded-xl bg-slate-900 border border-slate-800 space-y-2.5">
+                    <div class="flex items-center justify-between">
+                        <h3 class="text-sm font-semibold text-white">Power Supply & Flyback Protection</h3>
+                        <span class="text-[11px] font-mono text-rose-400 bg-rose-500/10 border border-rose-500/30 px-1.5 py-0.5 rounded">Electrical Safety</span>
+                    </div>
+                    <p class="text-xs text-slate-400">Never power the water pump directly from the ESP32 3.3V or 5V rail!</p>
+                    <div class="p-3 bg-slate-950 rounded-lg font-mono text-xs text-slate-300 space-y-1">
+                        <div>1. Use external 5V/12V 2A DC adapter for pump & relays.</div>
+                        <div>2. Connect all GND lines together (Common Ground).</div>
+                        <div>3. Place a 1N4007 flyback diode across inductive pump motor.</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Arduino Firmware Section -->
+            <div class="p-6 rounded-xl bg-slate-900 border border-slate-800 space-y-4">
+                <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                    <div>
+                        <h2 class="text-base font-semibold text-white">Production ESP32 Arduino Firmware (C++)</h2>
+                        <p class="text-xs text-slate-400 mt-0.5">Copy, configure your Wi-Fi credentials and device token, then flash via Arduino IDE or PlatformIO.</p>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <button onclick="showFirmware('http')" id="fwHttpBtn" class="px-3 py-1.5 text-xs font-mono font-medium rounded-md bg-emerald-600 text-white">HTTP REST Mode</button>
+                        <button onclick="showFirmware('mqtt')" id="fwMqttBtn" class="px-3 py-1.5 text-xs font-mono font-medium rounded-md bg-slate-800 text-slate-400 hover:text-white">MQTT Mode</button>
+                        <button onclick="copyFirmware()" class="px-3 py-1.5 text-xs bg-slate-800 hover:bg-slate-700 text-white rounded-md border border-slate-700 transition">Copy Code</button>
+                    </div>
+                </div>
+
+                <div class="relative">
+                    <pre id="firmwareCode" class="p-4 rounded-lg bg-slate-950 border border-slate-800 text-xs font-mono text-emerald-300 overflow-x-auto max-h-[480px] leading-relaxed">// Loading ESP32 firmware code...</pre>
+                </div>
+            </div>
+        </section>
+
+        <!-- ========================================================================= -->
+        <!-- TAB 9: SETTINGS -->
+        <!-- ========================================================================= -->
+        <section id="tab-settings" class="tab-pane hidden space-y-6">
+            <div>
+                <h1 class="text-xl sm:text-2xl font-bold tracking-tight text-white">System Settings & Integrations</h1>
+                <p class="text-xs sm:text-sm text-slate-400 mt-1">
+                    Manage hardware simulation mode, MQTT broker connections, device authentication, and alert webhooks.
+                </p>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <!-- Hardware Simulator / Demo Mode -->
+                <div class="p-6 rounded-xl bg-slate-900 border border-slate-800 space-y-4">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <h3 class="text-base font-semibold text-white">Hardware Simulation Mode</h3>
+                            <p class="text-xs text-slate-400 mt-1">
+                                When enabled, a physics-based simulator generates realistic telemetry for testing when physical ESP32 hardware is disconnected.
+                            </p>
+                        </div>
+                        <label class="relative inline-flex items-center cursor-pointer">
+                            <input type="checkbox" id="settingsSimToggle" class="sr-only peer" onchange="toggleSimMode(this.checked)">
+                            <div class="w-11 h-6 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-600"></div>
+                        </label>
+                    </div>
+
+                    <div class="p-3 rounded-lg bg-amber-500/10 border border-amber-500/30 text-xs text-amber-200">
+                        <strong>Important:</strong> In Real Hardware Mode, only genuine physical ESP32 sensor packets are accepted. Simulated readings are never mixed with hardware telemetry.
+                    </div>
+                </div>
+
+                <!-- MQTT Broker Integration -->
+                <div class="p-6 rounded-xl bg-slate-900 border border-slate-800 space-y-4">
+                    <h3 class="text-base font-semibold text-white">MQTT Broker Connectivity</h3>
+                    <p class="text-xs text-slate-400">Configure public or private MQTT broker for high-throughput sensor telemetry.</p>
+                    
+                    <div class="space-y-3 text-xs">
+                        <div>
+                            <label class="block text-slate-400 mb-1">WebSocket MQTT Broker URL (Browser)</label>
+                            <input type="text" id="mqttBrokerUrl" value="wss://broker.emqx.io:8084/mqtt" class="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-white font-mono focus:outline-none focus:border-emerald-500">
+                        </div>
+                        <div>
+                            <label class="block text-slate-400 mb-1">ESP32 TCP MQTT Host (Hardware)</label>
+                            <input type="text" id="mqttTcpHost" value="broker.emqx.io:1883" class="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-white font-mono focus:outline-none focus:border-emerald-500">
+                        </div>
+                        <div>
+                            <label class="block text-slate-400 mb-1">Topic Prefix</label>
+                            <input type="text" id="mqttTopicPrefix" value="smartplant/{deviceId}/telemetry" class="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-white font-mono focus:outline-none focus:border-emerald-500">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- External Alert Notifications -->
+                <div class="p-6 rounded-xl bg-slate-900 border border-slate-800 space-y-4 md:col-span-2">
+                    <h3 class="text-base font-semibold text-white">External Notification Gateways</h3>
+                    <p class="text-xs text-slate-400">Send high-priority critical plant stress and low water reservoir alerts directly to your phone.</p>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+                        <div class="p-4 bg-slate-950 rounded-lg border border-slate-800 space-y-3">
+                            <div class="font-semibold text-slate-300">Telegram Bot Notifications</div>
+                            <div>
+                                <label class="block text-slate-400 mb-1">Telegram Bot Token</label>
+                                <input type="password" placeholder="123456789:ABCdefGhIJKlmNoPQRsTUVwxyZ" class="w-full bg-slate-900 border border-slate-800 rounded px-3 py-2 text-white font-mono">
+                            </div>
+                            <div>
+                                <label class="block text-slate-400 mb-1">Chat ID</label>
+                                <input type="text" placeholder="-100123456789" class="w-full bg-slate-900 border border-slate-800 rounded px-3 py-2 text-white font-mono">
+                            </div>
+                            <button onclick="alert('Telegram configuration saved!')" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-white rounded font-medium">Save Telegram Bot</button>
+                        </div>
+
+                        <div class="p-4 bg-slate-950 rounded-lg border border-slate-800 space-y-3">
+                            <div class="font-semibold text-slate-300">Email Webhook Gateway</div>
+                            <div>
+                                <label class="block text-slate-400 mb-1">Recipient Email Address</label>
+                                <input type="email" placeholder="grower@greenhouse.org" class="w-full bg-slate-900 border border-slate-800 rounded px-3 py-2 text-white font-mono">
+                            </div>
+                            <div class="pt-6">
+                                <button onclick="alert('Email notification preference saved!')" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-white rounded font-medium">Save Email Gateway</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- FOOTER -->
+    <footer class="border-t border-slate-800/80 bg-slate-950 text-slate-500 px-6 py-6 text-xs text-center">
+        Smart Plant Monitoring & IoT Control Platform &bull; Physical ESP32 Hardware Integration &bull; Developed by Anmol
+    </footer>
+
+    <!-- MODAL: ADD / EDIT PLANT -->
+    <div id="plantModal" class="hidden fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+        <div class="bg-slate-900 border border-slate-800 rounded-xl max-w-lg w-full p-6 space-y-4 max-h-[90vh] overflow-y-auto">
+            <div class="flex items-center justify-between pb-2 border-b border-slate-800">
+                <h3 id="plantModalTitle" class="text-base font-semibold text-white">Add Plant Profile</h3>
+                <button onclick="closePlantModal()" class="text-slate-400 hover:text-white">✕</button>
+            </div>
+            <form id="plantForm" onsubmit="handleSavePlant(event)" class="space-y-3 text-xs">
+                <input type="hidden" id="pfId">
+                <div>
+                    <label class="block text-slate-400 mb-1">Plant Name</label>
+                    <input type="text" id="pfName" required placeholder="e.g. Living Room Ficus" class="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-white focus:outline-none focus:border-emerald-500">
+                </div>
+                <div>
+                    <label class="block text-slate-400 mb-1">Species</label>
+                    <input type="text" id="pfSpecies" required placeholder="e.g. Ficus lyrata" class="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-white focus:outline-none focus:border-emerald-500">
+                </div>
+                <div>
+                    <label class="block text-slate-400 mb-1">Location</label>
+                    <input type="text" id="pfLocation" required placeholder="e.g. Balcony Greenhouse" class="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-white focus:outline-none focus:border-emerald-500">
+                </div>
+                <div>
+                    <label class="block text-slate-400 mb-1">Assign to ESP32 Device</label>
+                    <select id="pfDevice" class="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-white focus:outline-none focus:border-emerald-500">
+                        <!-- Populated dynamically -->
+                    </select>
+                </div>
+                <div class="grid grid-cols-2 gap-3 pt-1">
+                    <div>
+                        <label class="block text-slate-400 mb-1">Target Moisture Min (%)</label>
+                        <input type="number" id="pfMoistureMin" value="40" class="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-white">
+                    </div>
+                    <div>
+                        <label class="block text-slate-400 mb-1">Target Moisture Max (%)</label>
+                        <input type="number" id="pfMoistureMax" value="75" class="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-white">
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-slate-400 mb-1">Target Temp Min (°C)</label>
+                        <input type="number" id="pfTempMin" value="18" class="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-white">
+                    </div>
+                    <div>
+                        <label class="block text-slate-400 mb-1">Target Temp Max (°C)</label>
+                        <input type="number" id="pfTempMax" value="28" class="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-white">
+                    </div>
+                </div>
+                <div class="flex justify-end gap-2 pt-3 border-t border-slate-800">
+                    <button type="button" onclick="closePlantModal()" class="px-4 py-2 rounded text-slate-400 hover:text-white">Cancel</button>
+                    <button type="submit" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold rounded">Save Plant</button>
+                </div>
+            </form>
         </div>
     </div>
 
-    <script>
-        function createChart(canvasId, label) {
-            const ctx = document.getElementById(canvasId).getContext('2d');
-            return new Chart(ctx, {
-                type: 'line',
-                data: {
-                    labels: Array.from({length: 30}, (_, i) => `-${30 - i}m`),
-                    datasets: [{
-                        label,
-                        data: Array(30).fill(0),
-                        borderColor: 'blue',
-                        tension: 0.4,
-                        fill: true,
-                        backgroundColor: 'rgba(52,152,219,0.3)'
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    scales: { 
-                        yAxes:[{
-                            ticks:{
-                                beginAtZero:true
-                            }
-                        }]
-                    },
-                    plugins:{
-                        legend:{display:false}
-                    }
-                }
-            });
-        }
+    <!-- MODAL: REGISTER ESP32 DEVICE -->
+    <div id="deviceModal" class="hidden fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+        <div class="bg-slate-900 border border-slate-800 rounded-xl max-w-lg w-full p-6 space-y-4">
+            <div class="flex items-center justify-between pb-2 border-b border-slate-800">
+                <h3 class="text-base font-semibold text-white">Register ESP32 Hardware Node</h3>
+                <button onclick="closeDeviceModal()" class="text-slate-400 hover:text-white">✕</button>
+            </div>
+            <form id="deviceForm" onsubmit="handleRegisterDevice(event)" class="space-y-3 text-xs">
+                <div>
+                    <label class="block text-slate-400 mb-1">Device ID (Unique Identifier)</label>
+                    <input type="text" id="dfId" required placeholder="e.g. esp32_hydro_03" class="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-white font-mono focus:outline-none focus:border-emerald-500">
+                    <span class="text-[11px] text-slate-500">Must match the ID flashed in ESP32 firmware</span>
+                </div>
+                <div>
+                    <label class="block text-slate-400 mb-1">Device Friendly Name</label>
+                    <input type="text" id="dfName" required placeholder="e.g. Balcony Hydroponics ESP32" class="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-white focus:outline-none focus:border-emerald-500">
+                </div>
+                <div>
+                    <label class="block text-slate-400 mb-1">Physical Location</label>
+                    <input type="text" id="dfLocation" required placeholder="e.g. South Greenhouse Shelf" class="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-white focus:outline-none focus:border-emerald-500">
+                </div>
+                <div>
+                    <label class="block text-slate-400 mb-1">Security Token</label>
+                    <div class="flex gap-2">
+                        <input type="text" id="dfToken" readonly class="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-white font-mono">
+                        <button type="button" onclick="generateDeviceToken()" class="px-3 py-1 bg-slate-800 text-slate-300 rounded hover:text-white">Regen</button>
+                    </div>
+                </div>
+                <div class="flex justify-end gap-2 pt-3 border-t border-slate-800">
+                    <button type="button" onclick="closeDeviceModal()" class="px-4 py-2 rounded text-slate-400 hover:text-white">Cancel</button>
+                    <button type="submit" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold rounded">Register Device</button>
+                </div>
+            </form>
+        </div>
+    </div>
 
-        const charts = {
-            moisture : createChart('moistureChart', 'Soil Moisture'),
-            temperature : createChart('temperatureChart', 'Temperature'),
-            humidity : createChart('humidityChart', 'Humidity'),
-            health : createChart('healthChart', 'Health Index')
-        };
+    <!-- MODAL: CONNECT DEVICE (THINGSPEAK & IOT CHANNELS) -->
+    <div id="connectDeviceModal" class="hidden fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
+        <div class="bg-slate-900 border border-slate-800 rounded-xl max-w-xl w-full p-6 space-y-4 max-h-[90vh] overflow-y-auto shadow-2xl">
+            <div class="flex items-center justify-between pb-3 border-b border-slate-800">
+                <div class="flex items-center gap-2.5">
+                    <div class="w-8 h-8 rounded-lg bg-sky-500/20 border border-sky-500/40 flex items-center justify-center text-sky-400 font-bold">
+                        📡
+                    </div>
+                    <div>
+                        <h3 class="text-base font-bold text-white">Connect Device: ThingSpeak IoT Channel</h3>
+                        <p class="text-xs text-slate-400">Stream real physical sensor feeds into your plant dashboard.</p>
+                    </div>
+                </div>
+                <button type="button" onclick="closeConnectDeviceModal()" class="text-slate-400 hover:text-white p-1 rounded hover:bg-slate-800">✕</button>
+            </div>
 
-        class PlantMonitorSystem {
-            constructor() {
-                this.sensorData = {
-                    moisture: this.generateRealisticValue(30, 80),
-                    temperature: this.generateRealisticValue(18, 35),
-                    humidity: this.generateRealisticValue(40, 90),
-                    healthIndex: this.calculateHealthIndex()
-                };
-                this.historicalData = {
-                    moisture: [],
-                    temperature: [],
-                    humidity: [],
-                    healthIndex: []
-                };
-                this.updateHistoricalData();
-                setInterval(() => this.updateHistoricalData(), 1000);
-                this.updateCharts();
-                setInterval(() => this.updateCharts(), 1000);
-            }
+            <!-- Quick Preset Buttons -->
+            <div class="p-3 rounded-lg bg-slate-950/80 border border-slate-800/80 space-y-1.5">
+                <div class="flex items-center justify-between text-[11px] text-slate-400">
+                    <span class="font-medium">Quick Connect Presets:</span>
+                    <span class="text-emerald-400">Verified Channels</span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <button type="button" onclick="applyThingSpeakPreset('1729295', '', 'Smart Agriculture')" class="px-2.5 py-1.5 rounded text-xs bg-slate-800 hover:bg-slate-700 text-sky-300 font-mono border border-slate-700 transition flex items-center gap-1.5">
+                        <span>🌱</span>
+                        <span>Channel #1729295 (Public Smart Agriculture)</span>
+                    </button>
+                </div>
+            </div>
 
-            generateRealisticValue(min, max) {
-                return Math.floor(Math.random() * (max - min + 1)) + min;
-            }
+            <form id="connectDeviceForm" onsubmit="handleSaveThingSpeakConfig(event)" class="space-y-4 text-xs">
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-slate-300 font-medium mb-1">IoT Platform</label>
+                        <input type="text" value="ThingSpeak REST API" disabled class="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-slate-400 font-mono cursor-not-allowed">
+                    </div>
+                    <div>
+                        <label class="block text-slate-300 font-medium mb-1">ThingSpeak Channel ID <span class="text-rose-400">*</span></label>
+                        <input type="text" id="tsFormChannelId" required value="1729295" placeholder="e.g. 1729295" class="w-full bg-slate-950 border border-slate-700 rounded px-3 py-2 text-white font-mono focus:outline-none focus:border-sky-500">
+                    </div>
+                </div>
 
-            calculateHealthIndex() {
-                const { moisture, temperature, humidity } = this.sensorData;
-                const healthFactors = [
-                    moisture > 50 && moisture < 70 ? 25 : 0,
-                    temperature > 20 && temperature < 30 ? 25 : 0,
-                    humidity > 50 && humidity < 80 ? 25 : 0
-                ];
-                return healthFactors.reduce((a, b) => a + b, 0);
-            }
+                <div>
+                    <label class="block text-slate-300 font-medium mb-1">Read API Key (Optional)</label>
+                    <div class="relative">
+                        <input type="password" id="tsFormApiKey" placeholder="Leave blank for public channels (e.g. #1729295)" class="w-full bg-slate-950 border border-slate-700 rounded px-3 py-2 text-white font-mono focus:outline-none focus:border-sky-500 pr-16">
+                        <button type="button" onclick="toggleApiKeyVisibility()" class="absolute right-2 top-2 text-[11px] text-slate-400 hover:text-slate-200">Show</button>
+                    </div>
+                    <span class="text-[11px] text-slate-500 mt-1 block">Private channels require an API key. Keys are securely proxied via server and never leaked.</span>
+                </div>
 
-            updateHistoricalData() {
-                Object.keys(this.sensorData).forEach(key => {
-                    this.historicalData[key].push(this.sensorData[key]);
-                    if (this.historicalData[key].length > 30) {
-                        this.historicalData[key].shift();
-                    }
-                });
-                // Update current status display
-                document.getElementById('moistureStatus').textContent = `Current Moisture: ${this.sensorData.moisture}%`;
-                document.getElementById('temperatureStatus').textContent = `Current Temperature: ${this.sensorData.temperature}°C`;
-                document.getElementById('humidityStatus').textContent = `Current Humidity: ${this.sensorData.humidity}%`;
-                document.getElementById('healthStatus').textContent = `Overall Health Index: ${this.sensorData.healthIndex}`;
-            }
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-slate-300 font-medium mb-1">Feed Results Count</label>
+                        <input type="number" id="tsFormResults" value="20" min="1" max="100" class="w-full bg-slate-950 border border-slate-700 rounded px-3 py-2 text-white font-mono">
+                        <span class="text-[11px] text-slate-500">Number of historical feeds to fetch (1 - 100)</span>
+                    </div>
+                    <div>
+                        <label class="block text-slate-300 font-medium mb-1">Update Interval</label>
+                        <input type="text" value="20 Seconds (ThingSpeak Rate Safe)" disabled class="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-slate-400 font-mono cursor-not-allowed">
+                        <span class="text-[11px] text-slate-500">Free tier rate limit is 15s per request</span>
+                    </div>
+                </div>
 
-            updateCharts() {
-                charts.moisture.data.datasets[0].data = this.historicalData.moisture;
-                charts.temperature.data.datasets[0].data = this.historicalData.temperature;
-                charts.humidity.data.datasets[0].data = this.historicalData.humidity;
-                charts.health.data.datasets[0].data = this.historicalData.healthIndex;
+                <!-- Custom Field Mapping Section -->
+                <div class="p-3 rounded-lg bg-slate-950/60 border border-slate-800 space-y-2">
+                    <div class="flex items-center justify-between">
+                        <span class="font-semibold text-slate-300">Sensor Field Mapping</span>
+                        <span class="text-[11px] text-slate-500">ThingSpeak field keys</span>
+                    </div>
+                    <div class="grid grid-cols-2 gap-2 text-[11px]">
+                        <div>
+                            <label class="block text-slate-400 mb-0.5">field1 &rarr; Temp (°C)</label>
+                            <input type="text" id="tsMapTemp" value="field1" class="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1.5 text-white font-mono">
+                        </div>
+                        <div>
+                            <label class="block text-slate-400 mb-0.5">field2 &rarr; Humidity (%)</label>
+                            <input type="text" id="tsMapHum" value="field2" class="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1.5 text-white font-mono">
+                        </div>
+                        <div>
+                            <label class="block text-slate-400 mb-0.5">field3 &rarr; Light (lx)</label>
+                            <input type="text" id="tsMapLight" value="field3" class="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1.5 text-white font-mono">
+                        </div>
+                        <div>
+                            <label class="block text-slate-400 mb-0.5">field4 &rarr; Moisture (%)</label>
+                            <input type="text" id="tsMapMoisture" value="field4" class="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1.5 text-white font-mono">
+                        </div>
+                    </div>
+                </div>
 
-                Object.values(charts).forEach(chart => chart.update());
-            }
-        }
+                <!-- Live Test Connection Status Result Banner -->
+                <div id="tsModalTestBanner" class="hidden p-3 rounded-lg border text-xs">
+                    <div id="tsModalTestContent"></div>
+                </div>
 
-        const sensorSystem = new PlantMonitorSystem();
-    </script>
+                <div class="flex flex-col sm:flex-row items-center justify-between gap-3 pt-3 border-t border-slate-800">
+                    <button type="button" id="btnTestConnection" onclick="testThingSpeakConnection()" class="w-full sm:w-auto px-4 py-2 bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-200 rounded font-semibold transition border border-slate-700 flex items-center justify-center gap-1.5">
+                        <span id="testConnSpinner" class="hidden animate-spin">⟳</span>
+                        <span>🔍 Test Connection</span>
+                    </button>
+                    <div class="flex items-center gap-2 w-full sm:w-auto justify-end">
+                        <button type="button" onclick="closeConnectDeviceModal()" class="px-4 py-2 rounded text-slate-400 hover:text-white">Cancel</button>
+                        <button type="submit" id="btnSaveTsConfig" class="px-4 py-2 bg-sky-600 hover:bg-sky-500 active:scale-95 text-white font-semibold rounded transition shadow-sm flex items-center gap-1.5">
+                            <span>Connect Channel</span>
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- MAIN CLIENT APPLICATION SCRIPTS -->
+    <script src="src/app.js"></script>
 </body>
 </html>

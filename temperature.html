@@ -2,49 +2,125 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Temperature Dashboard</title>
+    <title>Temperature Dashboard - Smart Plant IoT</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
+        :root {
+            --bg-start: #450a0a;
+            --bg-end: #0f172a;
+            --card-bg: rgba(255, 255, 255, 0.08);
+            --border-color: rgba(255, 255, 255, 0.15);
+            --temp-accent: #f87171;
+        }
+
         body {
-            font-family: Arial, sans-serif;
-            background: linear-gradient(135deg, #e74c3c, #c0392b);
-            color: white;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background: linear-gradient(135deg, var(--bg-start), var(--bg-end));
+            color: #f8fafc;
             text-align: center;
             margin: 0;
             padding: 0;
+            min-height: 100vh;
         }
+
         header {
-            padding: 20px;
+            padding: 24px 20px;
+            background: rgba(15, 23, 42, 0.6);
+            backdrop-filter: blur(12px);
+            border-bottom: 1px solid var(--border-color);
         }
+
+        h1 {
+            margin: 0 0 12px 0;
+            font-size: 1.8rem;
+            font-weight: 600;
+        }
+
         nav a {
-            color: white;
-            margin: 0 15px;
+            color: #94a3b8;
+            margin: 0 12px;
             text-decoration: none;
+            font-size: 0.95rem;
+            font-weight: 500;
+            transition: color 0.2s;
         }
+
+        nav a:hover, nav a.active {
+            color: #f87171;
+        }
+
+        .status-badge {
+            display: inline-block;
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            font-weight: 600;
+            letter-spacing: 0.05em;
+            padding: 3px 10px;
+            border-radius: 4px;
+            margin-top: 8px;
+            background: rgba(248, 113, 113, 0.15);
+            color: #f87171;
+            border: 1px solid rgba(248, 113, 113, 0.3);
+        }
+
+        .status-badge.simulated {
+            background: rgba(234, 179, 8, 0.15);
+            color: #facc15;
+            border-color: rgba(234, 179, 8, 0.3);
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 30px auto;
+            padding: 0 20px;
+        }
+
         .sensor-card {
-            background: rgba(255,255,255,0.2);
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 24px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+            backdrop-filter: blur(8px);
+        }
+
+        .metric-value {
+            font-size: 3rem;
+            font-weight: 700;
+            margin: 16px 0 6px 0;
+            font-variant-numeric: tabular-nums;
+            color: #f87171;
+        }
+
+        .condition-indicator {
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin-bottom: 20px;
+        }
+
+        .chart-container {
+            position: relative;
+            height: 320px;
+            width: 100%;
+            margin-top: 20px;
+        }
+
+        .threshold-box {
+            margin-top: 20px;
+            padding: 14px;
+            background: rgba(0, 0, 0, 0.25);
             border-radius: 10px;
-            padding: 20px;
-            margin: 20px auto;
-            max-width: 600px;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+            border: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-around;
+            font-size: 0.9rem;
         }
-        canvas {
-            max-width: 100%;
-            height: 300px; /* Set fixed height for better control */
-        }
+
         footer {
-            padding: 20px;
-            color: rgba(255,255,255,0.7);
-        }
-        #temperatureAlert {
-            color: white;
-            font-weight: bold;
-            font-size: 1.2em;
-            padding: 10px;
-            border-radius: 5px;
-            margin-top: 10px;
+            padding: 30px 20px;
+            color: #64748b;
+            font-size: 0.85rem;
         }
     </style>
 </head>
@@ -53,102 +129,211 @@
 <header>
     <h1>Temperature Monitoring</h1>
     <nav>
-        <a href="index.html">Dashboard</a>
+        <a href="index.html">← Platform Command Center</a>
         <a href="moisture.html">Soil Moisture</a>
+        <a href="temperature.html" class="active">Temperature</a>
         <a href="humidity.html">Humidity</a>
-        <a href="health.html">Plant Health Index</a>
+        <a href="health.html">Plant Health</a>
     </nav>
+    <div id="sourceBadge" class="status-badge">Connecting to IoT Backend...</div>
 </header>
 
-<div class="sensor-card">
-    <canvas id="temperatureChart"></canvas>
-    <p id="temperatureStatus">Current Temperature Level</p>
-    <div id="temperatureAlert"></div> <!-- Alert area for high/low temperatures -->
+<div class="container">
+    <div class="sensor-card">
+        <div style="display: flex; justify-content: space-between; align-items: baseline;">
+            <span style="font-size: 0.9rem; color: #94a3b8;">DHT22 Sensor (GPIO 4)</span>
+            <span id="lastUpdated" style="font-size: 0.8rem; color: #64748b;">Waiting for hardware...</span>
+        </div>
+
+        <div class="metric-value" id="temperatureValue">--°C</div>
+        <div class="condition-indicator" id="temperatureStatus">Ambient Thermal Condition: Reading...</div>
+
+        <div class="chart-container">
+            <canvas id="temperatureChart"></canvas>
+        </div>
+
+        <div class="threshold-box">
+            <div>Safe Minimum: <strong style="color: #60a5fa;">18°C</strong></div>
+            <div>Optimal Range: <strong style="color: #4ade80;">20°C - 27°C</strong></div>
+            <div>Critical Upper Limit: <strong style="color: #f87171;">32°C</strong></div>
+        </div>
+    </div>
 </div>
 
 <script>
-    class TemperatureMonitorSystem {
-        constructor() {
-            this.temperatureData = this.generateRealisticValue(18, 35);
-            this.historicalData = [];
-            this.updateHistoricalData();
-            setInterval(() => this.updateHistoricalData(), 1000); // Update every second
-            this.createChart();
+    const ctx = document.getElementById('temperatureChart').getContext('2d');
+    const temperatureChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: Array.from({ length: 30 }, (_, i) => `-${30 - i}m`),
+            datasets: [{
+                label: 'Temperature (°C)',
+                data: Array(30).fill(null),
+                borderColor: '#f87171',
+                backgroundColor: 'rgba(248, 113, 113, 0.15)',
+                tension: 0.35,
+                fill: true,
+                borderWidth: 2,
+                pointRadius: 2,
+                pointHoverRadius: 5
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                y: {
+                    min: 10,
+                    max: 40,
+                    grid: { color: 'rgba(255, 255, 255, 0.08)' },
+                    ticks: { color: '#94a3b8', callback: v => `${v}°C` }
+                },
+                x: {
+                    grid: { color: 'rgba(255, 255, 255, 0.05)' },
+                    ticks: { color: '#64748b', maxTicksLimit: 10 }
+                }
+            },
+            plugins: {
+                legend: { display: false }
+            }
+        }
+    });
+
+    function updateDisplay(temp, isSimulated, timestamp, isThingSpeak = false) {
+        const valElem = document.getElementById('temperatureValue');
+        const statusElem = document.getElementById('temperatureStatus');
+        const badgeElem = document.getElementById('sourceBadge');
+        const updatedElem = document.getElementById('lastUpdated');
+
+        if (temp === null || temp === undefined || isNaN(temp)) {
+            valElem.textContent = 'No data available';
+            valElem.style.fontSize = '1.8rem';
+            statusElem.textContent = 'Condition: SENSOR OFFLINE';
+            statusElem.style.color = '#94a3b8';
+            valElem.style.color = '#94a3b8';
+            return;
         }
 
-        generateRealisticValue(min, max) {
-          return Math.floor(Math.random() * (max - min + 1)) + min;
-      }
+        valElem.style.fontSize = '3rem';
+        valElem.textContent = `${temp.toFixed(1)}°C`;
+        updatedElem.textContent = `Last reading: ${new Date(timestamp || Date.now()).toLocaleTimeString()} (${new Date(timestamp || Date.now()).toUTCString()})`;
 
-      updateHistoricalData() {
-          this.temperatureData = this.generateRealisticValue(18, 35);
-          this.historicalData.push(this.temperatureData);
-          
-          if (this.historicalData.length > 30) {
-              this.historicalData.shift();
-          }
-          
-          document.getElementById('temperatureStatus').textContent = `Current Temperature Level: ${this.temperatureData}°C`;
-          
-          // Display alert if temperature is too high or too low
-          const alertDiv = document.getElementById('temperatureAlert');
-          if (this.temperatureData < 18) {
-              alertDiv.textContent = "Warning! Temperature too low.";
-              alertDiv.style.backgroundColor = "rgba(0,0,255,0.6)"; // Blue for low temperature
-          } else if (this.temperatureData > 35) {
-              alertDiv.textContent = "Warning! Temperature too high.";
-              alertDiv.style.backgroundColor = "rgba(255,0,0,0.6)"; // Red for high temperature
-          } else {
-              alertDiv.textContent = "";
-          }
+        if (isThingSpeak) {
+            badgeElem.className = 'status-badge';
+            badgeElem.style.borderColor = '#f87171';
+            badgeElem.style.color = '#f87171';
+            badgeElem.textContent = 'ThingSpeak Cloud IoT (field1: Temperature)';
+        } else if (isSimulated) {
+            badgeElem.className = 'status-badge simulated';
+            badgeElem.textContent = 'Hardware Simulation Mode (ESP32-DEMO)';
+        } else {
+            badgeElem.className = 'status-badge';
+            badgeElem.textContent = 'Live Physical ESP32 Hardware Stream';
+        }
 
-          this.updateChart();
-      }
-
-      updateChart() {
-          // Update the chart with the latest historical temperature data
-          temperatureChart.data.datasets[0].data = this.historicalData;
-          temperatureChart.update();
-      }
-
-      createChart() {
-          const ctx = document.getElementById('temperatureChart').getContext('2d');
-          
-          window.temperatureChart = new Chart(ctx, {
-              type: 'line',
-              data: {
-                  labels: Array.from({length: 30}, (_, i) => `-${30 - i}m`), // Time label or sequential
-                  datasets: [{
-                      label: 'Temperature',
-                      data: this.historicalData,
-                      borderColor: 'red',
-                      tension: 0.4,
-                      fill: true,
-                      backgroundColor: 'rgba(231,76,60,.3)'
-                  }]
-              },
-              options: {
-                  responsive: true,
-                  scales: {
-                      y: {
-                          beginAtZero: false,
-                          min: 10, // Minimum temperature
-                          max: 40 // Maximum temperature
-                      }
-                  },
-                  plugins: {
-                      legend: { display: false }
-                  }
-              }
-          });
-      }
+        if (temp < 18) {
+            statusElem.textContent = 'Condition: COLD STRESS (< 18°C) - Heating Recommended';
+            statusElem.style.color = '#60a5fa';
+            valElem.style.color = '#60a5fa';
+        } else if (temp > 29) {
+            statusElem.textContent = 'Condition: HEAT STRESS (> 29°C) - Fan Ventilation Needed';
+            statusElem.style.color = '#ef4444';
+            valElem.style.color = '#ef4444';
+        } else {
+            statusElem.textContent = 'Condition: NOMINAL THERMAL BALANCE';
+            statusElem.style.color = '#22c55e';
+            valElem.style.color = '#4ade80';
+        }
     }
 
-    const temperatureSystem = new TemperatureMonitorSystem();
+    async function loadInitialData() {
+        try {
+            // First check ThingSpeak live data
+            const tsRes = await fetch('/api/v1/thingspeak/data');
+            const tsData = await tsRes.json();
+            if (tsData && tsData.success && tsData.feeds && tsData.feeds.length > 0) {
+                const feeds = tsData.feeds;
+                const points = feeds.map(f => f.temperature);
+                const labels = feeds.map(f => new Date(f.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+
+                temperatureChart.data.labels = labels;
+                temperatureChart.data.datasets[0].data = points;
+                temperatureChart.update();
+
+                const latest = tsData.latest;
+                if (latest) {
+                    updateDisplay(latest.temperature, false, latest.createdAt, true);
+                    return;
+                }
+            }
+
+            const res = await fetch('/api/v1/telemetry/history?range=24h&limit=30');
+            const data = await res.json();
+            if (data && data.length > 0) {
+                const points = data.map(d => d.temperature).filter(t => typeof t === 'number');
+                const labels = data.map(d => new Date(d.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+
+                temperatureChart.data.labels = labels;
+                temperatureChart.data.datasets[0].data = points;
+                temperatureChart.update();
+
+                const latest = data[data.length - 1];
+                updateDisplay(latest.temperature, latest.isSimulated, latest.timestamp, false);
+            }
+        } catch (err) {
+            console.error('Failed to load initial temperature data:', err);
+        }
+    }
+
+    function connectWebSocket() {
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const socket = new WebSocket(`${protocol}//${window.location.host}/ws`);
+
+        socket.onmessage = (event) => {
+            try {
+                const msg = JSON.parse(event.data);
+                if (msg.event === 'thingspeak:update') {
+                    const latest = msg.data.latest;
+                    const feeds = msg.data.feeds;
+                    if (feeds && feeds.length > 0) {
+                        temperatureChart.data.labels = feeds.map(f => new Date(f.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+                        temperatureChart.data.datasets[0].data = feeds.map(f => f.temperature);
+                        temperatureChart.update();
+                    }
+                    if (latest) {
+                        updateDisplay(latest.temperature, false, latest.createdAt, true);
+                    }
+                } else if (msg.event === 'telemetry:update') {
+                    const record = msg.data.record;
+                    if (typeof record.temperature === 'number') {
+                        updateDisplay(record.temperature, record.isSimulated, record.timestamp, false);
+
+                        const chartData = temperatureChart.data.datasets[0].data;
+                        const chartLabels = temperatureChart.data.labels;
+                        chartData.push(record.temperature);
+                        chartLabels.push(new Date(record.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+
+                        if (chartData.length > 30) {
+                            chartData.shift();
+                            chartLabels.shift();
+                        }
+                        temperatureChart.update();
+                    }
+                }
+            } catch (e) {
+                console.warn(e);
+            }
+        };
+
+        socket.onclose = () => setTimeout(connectWebSocket, 3000);
+    }
+
+    loadInitialData();
+    connectWebSocket();
 </script>
 
 <footer>
-    © 2024 Smart Plant Monitoring | Developed by Anmol
+    Smart Plant Monitoring Platform | Real IoT Hardware & ESP32 Integration
 </footer>
 
 </body>

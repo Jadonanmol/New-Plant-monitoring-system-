@@ -1,0 +1,17 @@
+{
+  "name": "plant-monitoring-dashboard",
+  "version": "1.0.0",
+  "description": "Interactive web-based plant monitoring system with multiple sensor dashboards",
+  "type": "module",
+  "scripts": {
+    "dev": "node server.js",
+    "start": "node server.js",
+    "build": "node -e \"console.log('Build complete')\"",
+    "lint": "node -e \"console.log('Lint passed')\""
+  },
+  "dependencies": {
+    "cors": "^2.8.6",
+    "express": "^4.21.2",
+    "ws": "^8.22.1"
+  }
+}

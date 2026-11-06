@@ -2,121 +2,320 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Humidity Dashboard</title>
+    <title>Humidity Dashboard - Smart Plant IoT</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
-        body { 
-            font-family: 'Arial', sans-serif; 
-            background-color: #9b59b6; 
-            color: white; 
-            text-align: center; 
-            margin: 0; 
-            padding: 0; 
+        :root {
+            --bg-start: #3b0764;
+            --bg-end: #0f172a;
+            --card-bg: rgba(255, 255, 255, 0.08);
+            --border-color: rgba(255, 255, 255, 0.15);
+            --hum-accent: #c084fc;
         }
-        header { 
-            padding: 20px; 
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background: linear-gradient(135deg, var(--bg-start), var(--bg-end));
+            color: #f8fafc;
+            text-align: center;
+            margin: 0;
+            padding: 0;
+            min-height: 100vh;
         }
-        nav a { 
-            color: white; 
-            margin: 0 15px; 
-            text-decoration: none; 
+
+        header {
+            padding: 24px 20px;
+            background: rgba(15, 23, 42, 0.6);
+            backdrop-filter: blur(12px);
+            border-bottom: 1px solid var(--border-color);
         }
-        .sensor-card { 
-            background: rgba(255, 255, 255, .2); 
-            border-radius: 10px; 
-            padding: 20px; 
-            margin: 20px auto; 
-            max-width: 600px; 
-            box-shadow: 0 4px 10px rgba(0, 0, 0, .3); 
+
+        h1 {
+            margin: 0 0 12px 0;
+            font-size: 1.8rem;
+            font-weight: 600;
         }
-        canvas { 
-            max-width: 100%; 
-            height: auto !important; 
+
+        nav a {
+            color: #94a3b8;
+            margin: 0 12px;
+            text-decoration: none;
+            font-size: 0.95rem;
+            font-weight: 500;
+            transition: color 0.2s;
         }
-        footer { 
-            padding: 20px; 
-            color: rgba(255, 255, 255, .7); 
+
+        nav a:hover, nav a.active {
+            color: #c084fc;
+        }
+
+        .status-badge {
+            display: inline-block;
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            font-weight: 600;
+            letter-spacing: 0.05em;
+            padding: 3px 10px;
+            border-radius: 4px;
+            margin-top: 8px;
+            background: rgba(192, 132, 252, 0.15);
+            color: #c084fc;
+            border: 1px solid rgba(192, 132, 252, 0.3);
+        }
+
+        .status-badge.simulated {
+            background: rgba(234, 179, 8, 0.15);
+            color: #facc15;
+            border-color: rgba(234, 179, 8, 0.3);
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 30px auto;
+            padding: 0 20px;
+        }
+
+        .sensor-card {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 24px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+            backdrop-filter: blur(8px);
+        }
+
+        .metric-value {
+            font-size: 3rem;
+            font-weight: 700;
+            margin: 16px 0 6px 0;
+            font-variant-numeric: tabular-nums;
+            color: #c084fc;
+        }
+
+        .condition-indicator {
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin-bottom: 20px;
+        }
+
+        .chart-container {
+            position: relative;
+            height: 320px;
+            width: 100%;
+            margin-top: 20px;
+        }
+
+        footer {
+            padding: 30px 20px;
+            color: #64748b;
+            font-size: 0.85rem;
         }
     </style>
 </head>
-
 <body>
 
 <header>
-    <h1>Humidity Monitoring</h1>
+    <h1>Air Humidity Monitoring</h1>
     <nav>
-        <a href="index.html">Dashboard</a>
+        <a href="index.html">← Platform Command Center</a>
         <a href="moisture.html">Soil Moisture</a>
         <a href="temperature.html">Temperature</a>
-        <a href="health.html">Plant Health Index</a>
+        <a href="humidity.html" class="active">Humidity</a>
+        <a href="health.html">Plant Health</a>
     </nav>
+    <div id="sourceBadge" class="status-badge">Connecting to IoT Backend...</div>
 </header>
 
-<div class="sensor-card">
-    <canvas id="humidityChart"></canvas>
-    <p id="humidityStatus">Current Humidity Level</p>
+<div class="container">
+    <div class="sensor-card">
+        <div style="display: flex; justify-content: space-between; align-items: baseline;">
+            <span style="font-size: 0.9rem; color: #94a3b8;">DHT22 Relative Humidity (GPIO 4)</span>
+            <span id="lastUpdated" style="font-size: 0.8rem; color: #64748b;">Waiting for hardware...</span>
+        </div>
+
+        <div class="metric-value" id="humidityValue">--%</div>
+        <div class="condition-indicator" id="humidityStatus">Ambient Humidity: Reading...</div>
+
+        <div class="chart-container">
+            <canvas id="humidityChart"></canvas>
+        </div>
+    </div>
 </div>
 
 <script>
-    class HumidityMonitorSystem {
-        constructor() {
-            this.humidityData = this.generateRealisticValue(40, 90);
-            this.historicalData = [];
-            this.updateHistoricalData();
-            setInterval(() => this.updateHistoricalData(), 1000);
-            this.createChart();
-        }
-
-        generateRealisticValue(min, max) {
-            return Math.floor(Math.random() * (max - min + 1)) + min;
-        }
-
-        updateHistoricalData() {
-            this.humidityData = this.generateRealisticValue(40, 90);
-            this.historicalData.push(this.humidityData);
-            if (this.historicalData.length > 30) {
-                this.historicalData.shift();
-            }
-            document.getElementById('humidityStatus').textContent = `Current Humidity Level: ${this.humidityData}%`;
-        }
-
-        createChart() {
-            const ctx = document.getElementById('humidityChart').getContext('2d');
-            new Chart(ctx, {
-                type: 'line',
-                data: {
-                    labels: Array.from({ length: 30 }, (_, i) => `-${30 - i}m`),
-                    datasets: [{
-                        label: 'Humidity',
-                        data: this.historicalData,
-                        borderColor: 'green',
-                        tension: 0.4,
-                        fill: true,
-                        backgroundColor: 'rgba(46, 204, 113, .3)'
-                    }]
+    const ctx = document.getElementById('humidityChart').getContext('2d');
+    const humidityChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: Array.from({ length: 30 }, (_, i) => `-${30 - i}m`),
+            datasets: [{
+                label: 'Relative Humidity (%)',
+                data: Array(30).fill(null),
+                borderColor: '#c084fc',
+                backgroundColor: 'rgba(192, 132, 252, 0.15)',
+                tension: 0.35,
+                fill: true,
+                borderWidth: 2,
+                pointRadius: 2,
+                pointHoverRadius: 5
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                y: {
+                    min: 0,
+                    max: 100,
+                    grid: { color: 'rgba(255, 255, 255, 0.08)' },
+                    ticks: { color: '#94a3b8', callback: v => `${v}%` }
                 },
-                options: {
-                    responsive: true,
-                    scales: {
-                        y: { 
-                            beginAtZero: true 
-                        }
-                    },
-                    plugins: {
-                        legend: { 
-                            display: false 
-                        }
-                    }
+                x: {
+                    grid: { color: 'rgba(255, 255, 255, 0.05)' },
+                    ticks: { color: '#64748b', maxTicksLimit: 10 }
                 }
-            });
+            },
+            plugins: { legend: { display: false } }
+        }
+    });
+
+    function updateDisplay(hum, isSimulated, timestamp, isThingSpeak = false) {
+        const valElem = document.getElementById('humidityValue');
+        const statusElem = document.getElementById('humidityStatus');
+        const badgeElem = document.getElementById('sourceBadge');
+        const updatedElem = document.getElementById('lastUpdated');
+
+        if (hum === null || hum === undefined || isNaN(hum)) {
+            valElem.textContent = 'No data available';
+            valElem.style.fontSize = '1.8rem';
+            statusElem.textContent = 'Air Condition: SENSOR OFFLINE';
+            statusElem.style.color = '#94a3b8';
+            valElem.style.color = '#94a3b8';
+            return;
+        }
+
+        valElem.style.fontSize = '3rem';
+        valElem.textContent = `${hum.toFixed(1)}%`;
+        updatedElem.textContent = `Last reading: ${new Date(timestamp || Date.now()).toLocaleTimeString()} (${new Date(timestamp || Date.now()).toUTCString()})`;
+
+        if (isThingSpeak) {
+            badgeElem.className = 'status-badge';
+            badgeElem.style.borderColor = '#c084fc';
+            badgeElem.style.color = '#c084fc';
+            badgeElem.textContent = 'ThingSpeak Cloud IoT (field2: Humidity)';
+        } else if (isSimulated) {
+            badgeElem.className = 'status-badge simulated';
+            badgeElem.textContent = 'Hardware Simulation Mode (ESP32-DEMO)';
+        } else {
+            badgeElem.className = 'status-badge';
+            badgeElem.textContent = 'Live Physical ESP32 Hardware Stream';
+        }
+
+        if (hum < 45) {
+            statusElem.textContent = 'Air Condition: DRY (< 45%) - Humidifier Recommended';
+            statusElem.style.color = '#f59e0b';
+            valElem.style.color = '#f59e0b';
+        } else if (hum > 80) {
+            statusElem.textContent = 'Air Condition: DAMP / STAGNANT (> 80%) - Mildew Risk';
+            statusElem.style.color = '#38bdf8';
+            valElem.style.color = '#38bdf8';
+        } else {
+            statusElem.textContent = 'Air Condition: OPTIMAL TRANSPIRATION BALANCE';
+            statusElem.style.color = '#22c55e';
+            valElem.style.color = '#4ade80';
         }
     }
 
-    const humiditySystem = new HumidityMonitorSystem();
+    async function loadInitialData() {
+        try {
+            // First check ThingSpeak live data
+            const tsRes = await fetch('/api/v1/thingspeak/data');
+            const tsData = await tsRes.json();
+            if (tsData && tsData.success && tsData.feeds && tsData.feeds.length > 0) {
+                const feeds = tsData.feeds;
+                const points = feeds.map(f => f.humidity);
+                const labels = feeds.map(f => new Date(f.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+
+                humidityChart.data.labels = labels;
+                humidityChart.data.datasets[0].data = points;
+                humidityChart.update();
+
+                const latest = tsData.latest;
+                if (latest) {
+                    updateDisplay(latest.humidity, false, latest.createdAt, true);
+                    return;
+                }
+            }
+
+            const res = await fetch('/api/v1/telemetry/history?range=24h&limit=30');
+            const data = await res.json();
+            if (data && data.length > 0) {
+                const points = data.map(d => d.humidity).filter(h => typeof h === 'number');
+                const labels = data.map(d => new Date(d.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+
+                humidityChart.data.labels = labels;
+                humidityChart.data.datasets[0].data = points;
+                humidityChart.update();
+
+                const latest = data[data.length - 1];
+                updateDisplay(latest.humidity, latest.isSimulated, latest.timestamp, false);
+            }
+        } catch (err) {
+            console.error('Failed to load initial humidity data:', err);
+        }
+    }
+
+    function connectWebSocket() {
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const socket = new WebSocket(`${protocol}//${window.location.host}/ws`);
+
+        socket.onmessage = (event) => {
+            try {
+                const msg = JSON.parse(event.data);
+                if (msg.event === 'thingspeak:update') {
+                    const latest = msg.data.latest;
+                    const feeds = msg.data.feeds;
+                    if (feeds && feeds.length > 0) {
+                        humidityChart.data.labels = feeds.map(f => new Date(f.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+                        humidityChart.data.datasets[0].data = feeds.map(f => f.humidity);
+                        humidityChart.update();
+                    }
+                    if (latest) {
+                        updateDisplay(latest.humidity, false, latest.createdAt, true);
+                    }
+                } else if (msg.event === 'telemetry:update') {
+                    const record = msg.data.record;
+                    if (typeof record.humidity === 'number') {
+                        updateDisplay(record.humidity, record.isSimulated, record.timestamp, false);
+
+                        const chartData = humidityChart.data.datasets[0].data;
+                        const chartLabels = humidityChart.data.labels;
+                        chartData.push(record.humidity);
+                        chartLabels.push(new Date(record.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+
+                        if (chartData.length > 30) {
+                            chartData.shift();
+                            chartLabels.shift();
+                        }
+                        humidityChart.update();
+                    }
+                }
+            } catch (e) {
+                console.warn(e);
+            }
+        };
+
+        socket.onclose = () => setTimeout(connectWebSocket, 3000);
+    }
+
+    loadInitialData();
+    connectWebSocket();
 </script>
 
-<footer>©2024 Smart Plant Monitoring | Developed by Anmol</footer>
+<footer>
+    Smart Plant Monitoring Platform | Real IoT Hardware & ESP32 Integration
+</footer>
 
 </body>
 </html>
